@@ -1,0 +1,9 @@
+/target
+.reference/
+*.log
+
+# The frontend build output is embedded into the binary at compile time; it is
+# reproducible with `npm run build` and not worth tracking.
+/web/dist
+/web/node_modules
+/web/.vite

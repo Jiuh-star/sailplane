@@ -1,0 +1,56 @@
+export default {
+  title: '网络拓扑',
+  description:
+    '网络是怎么连起来的：策略连接了哪些身份、哪些网段只依赖一台设备、每台设备归属哪个中继。',
+  loadFailed: '无法加载拓扑',
+  noRules: '策略里没有任何规则',
+  noRulesDescription: '没有 ACL 规则时，网络里任何节点都互不可达。',
+  summary: {
+    nodes: '{count} 台机器',
+    online: '{count} 台在线',
+    rules: '{count} 条规则',
+    soleRoutes: '{count} 条单点路由',
+  },
+  sole: {
+    title: '只有一台机器提供这条路径',
+    body: '{routes} 只有一台设备在通告。该设备一旦离线，对应网段就会失联，直到有别的节点重新通告这条路由。',
+  },
+  graph: {
+    title: '访问关系图',
+    description:
+      '每条线是一条规则，标签是它放行的端口。虚线是 Tailscale SSH 规则，只作用于 22 端口。',
+    label: '访问关系图',
+    machineCount: '{count} 台',
+    ruleNumber: '第 {index} 条规则',
+    portLabel: '端口 {ports}',
+    reach: '从 {from} 台可达 {to} 台',
+    users: '登录名 {users}',
+    hint: '点击某条线查看它对应的规则。',
+    acl: 'ACL',
+    ssh: 'SSH',
+    legendAcl: '{count} 条 ACL 规则',
+    legendSsh: '{count} 条 SSH 规则',
+  },
+  routes: {
+    title: '通告的路由',
+    description: '机器提供给网络转发的网段，以及是否还有别的机器能承担。',
+    empty: '没有通告任何路由',
+    emptyDescription:
+      '在设备上执行 `tailscale set --advertise-routes=…`，它就会成为子网路由器。',
+    approved: '已批准',
+    pending: '待批准',
+    sole: '单点',
+    exitNode: '出口节点',
+  },
+  relays: {
+    title: '中继区域',
+    description:
+      '每台设备都与它归属的中继保持连接，无法直连时经由中继转发。数据来自代理上报的 netmap。',
+    region: '区域 {id}',
+    unknown: '未上报中继',
+    count: '{count} 台机器',
+    endpoints: '{count} 个端点',
+  },
+  empty: '还没有节点',
+  emptyDescription: '注册一台设备，这里就会显示网络结构。',
+}

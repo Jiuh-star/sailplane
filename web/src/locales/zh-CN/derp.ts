@@ -1,0 +1,42 @@
+export default {
+  title: 'DERP',
+  description:
+    '网络的中继来源。Headscale 从配置文件构建这份中继地图。这里的每次修改都会重写该文件并重载 Headscale。',
+  loadFailed: '无法读取 DERP 配置',
+  unavailableTitle: '没有配置文件',
+  unavailableBody: '请设置 `headscale.config_path`，让 Sailplane 能够读写 Headscale 配置。',
+  readOnlyTitle: '只读',
+  readOnlyBody: 'Sailplane 能读取配置但无法写入，请检查文件权限。',
+  warningTitle: '已保存，但有警告',
+  failedTitle: '无法保存修改',
+  urls: {
+    title: '中继地图 URL',
+    description: 'Headscale 和每个客户端都会拉取这些 URL。Tailscale 官方地图位于 controlplane.tailscale.com。',
+    empty: '尚未配置 URL。',
+  },
+  paths: {
+    title: '本地地图文件',
+    description: 'Headscale 主机上的路径，用于你自己维护的地图。',
+    empty: '尚未配置文件。',
+    hint: 'Headscale 读取该路径，因此文件必须存在于它的容器或主机上。文件不必存在于本机。',
+  },
+  updates: {
+    title: '更新',
+    description: 'Headscale 重新拉取中继地图的频率。',
+    auto: '自动更新',
+    autoHint: '按计划重新拉取，而不是只在启动时拉取一次。',
+    frequency: '间隔',
+  },
+  server: {
+    title: '内置 DERP 服务器',
+    description: '在 Headscale 内部运行中继，适合没有其他可达中继的网络。',
+    hint: '启用还需要在配置文件中填写 `derp.server.stun_listen_addr`、私钥路径，并放通相应端口。',
+  },
+  toast: {
+    urlAdded: '已添加中继 URL',
+    urlRemoved: '已移除中继 URL',
+    pathAdded: '已添加地图文件',
+    pathRemoved: '已移除地图文件',
+    updated: 'DERP 配置已更新',
+  },
+}
