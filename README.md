@@ -1,11 +1,9 @@
+# Sailplane
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
   <img align="left" src="docs/assets/logo-light.svg" alt="Sailplane" width="128" height="128">
 </picture>
-
-# Sailplane
-
-<br clear="left">
 
 Sailplane is a web UI for [Headscale](https://headscale.net). One binary serves
 the single-page app, the JSON API and the live event stream. With every feature
@@ -85,10 +83,12 @@ coupled locale keys on both sides.
 
 ## License
 
-MIT, matching upstream Headplane.
+MIT
 
-> **AI content disclosure.** The code, comments and documentation in this
-> repository are written by Anthropic's Claude Code, an AI coding agent, under
-> the direction of one human maintainer. The maintainer sets the requirements,
-> reviews changes and runs the tests, but AI output can contain mistakes. Review
-> the code before you deploy it, and report problems in the issue tracker.
+## AI Content Disclosure
+
+The code, comments and documentation in this repository are written by 
+Anthropic's Claude Code, an AI coding agent. The maintainer sets the
+requirements, reviews changes and runs the tests, but AI output can
+contain mistakes. Review the code before you deploy it, and report problems
+in the issue tracker.
