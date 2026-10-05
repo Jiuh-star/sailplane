@@ -432,7 +432,10 @@ impl OidcProvider {
             }
 
             // `invalid_client` usually means the client-auth method guess was
-            // wrong: retry once with the other method before giving up.
+            // wrong: retry once with the other method before giving up. Record
+            // the first failure at `warn`, because a provider that invalidates
+            // the code before it checks the client answers the retry with a
+            // misleading error, and the real cause would stay invisible.
             if error == "invalid_client" && !retried {
                 let alternative = match effective {
                     TokenEndpointAuthMethod::ClientSecretBasic => {
@@ -440,8 +443,9 @@ impl OidcProvider {
                     }
                     _ => TokenEndpointAuthMethod::ClientSecretBasic,
                 };
-                tracing::debug!(
-                    "token endpoint rejected client authentication; retrying as {alternative:?}"
+                tracing::warn!(
+                    "token endpoint rejected {effective:?} client authentication \
+                     ({error} {description}); retrying as {alternative:?}"
                 );
                 return Box::pin(self.token_request(
                     metadata,

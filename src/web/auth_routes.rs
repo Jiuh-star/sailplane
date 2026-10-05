@@ -3,7 +3,7 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{AppendHeaders, IntoResponse, Redirect, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -62,7 +62,8 @@ fn config_view(state: &AppState) -> Value {
     let oidc_enabled = state.oidc.is_some();
     json!({
         "prefix": state.prefix(),
-        "baseUrl": state.public_base(),
+        // The address machines register with, not Sailplane's own URL.
+        "baseUrl": state.headscale_public_base(),
         "headscaleUrl": state.config.headscale.url,
         "configAvailable": state.hsconfig.readable(),
         "configWritable": state.hsconfig.writable(),
@@ -221,15 +222,7 @@ pub async fn oidc_start(
         .await
         .map_err(|err| ApiError::internal(format!("{err:#}")))?;
 
-    let options = CookieOptions {
-        secure: state.config.server.cookie_secure,
-        http_only: true,
-        max_age_seconds: 1800,
-        domain: state.config.server.cookie_domain.clone(),
-        path: format!("{}/oidc/callback", state.prefix()),
-        same_site: crate::auth::SameSite::Lax,
-    };
-
+    let options = oidc_state_options(&state);
     let value = transaction
         .encode()
         .map_err(|err| ApiError::internal(err.to_string()))?;
@@ -349,22 +342,82 @@ pub async fn oidc_callback(
     )
     .map_err(ApiError::Internal)?;
 
-    let options = state.auth.cookie_options();
-    Ok((
+    Ok(oidc_redirect_response(
+        format!("{}{}/", state.public_base(), state.prefix()),
+        state.auth.cookie_options().render(SESSION_COOKIE, &cookie),
+        oidc_state_options(&state).render_cleared(OIDC_STATE_COOKIE),
+    ))
+}
+
+/// Redirects the browser into the session. The response carries two cookies:
+/// the new session and the cleared OIDC transaction.
+///
+/// A plain array of headers cannot express this. `IntoResponseParts` for
+/// arrays calls `HeaderMap::insert`, so the second `Set-Cookie` would replace
+/// the first and the browser would never see the session. `AppendHeaders`
+/// keeps both.
+fn oidc_redirect_response(
+    location: String,
+    session_cookie: String,
+    cleared_state_cookie: String,
+) -> Response {
+    (
         StatusCode::FOUND,
-        [
-            (header::LOCATION, format!("{}{}/", state.public_base(), state.prefix())),
-            (header::SET_COOKIE, options.render(SESSION_COOKIE, &cookie)),
-            (
-                header::SET_COOKIE,
-                options.render_cleared(OIDC_STATE_COOKIE),
-            ),
-        ],
-        (),
+        [(header::LOCATION, location)],
+        AppendHeaders([
+            (header::SET_COOKIE, session_cookie),
+            (header::SET_COOKIE, cleared_state_cookie),
+        ]),
     )
-        .into_response())
+        .into_response()
+}
+
+/// Cookie attributes of the short-lived OIDC transaction cookie. The callback
+/// clears the cookie with the same attributes; a different path would leave
+/// the original cookie in the browser.
+fn oidc_state_options(state: &AppState) -> CookieOptions {
+    CookieOptions {
+        secure: state.config.server.cookie_secure,
+        http_only: true,
+        max_age_seconds: 1800,
+        domain: state.config.server.cookie_domain.clone(),
+        path: format!("{}/oidc/callback", state.prefix()),
+        same_site: crate::auth::SameSite::Lax,
+    }
 }
 
 fn oidc_redirect_uri(state: &AppState) -> String {
     format!("{}{}/oidc/callback", state.public_base(), state.prefix())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The session cookie must not shadow the cleared transaction cookie. A
+    /// regression here breaks every OIDC sign-in while the API key login keeps
+    /// working, which is hard to spot without this check.
+    #[test]
+    fn oidc_redirect_keeps_both_cookies() {
+        let response = oidc_redirect_response(
+            "https://sailplane.example.com/admin/".into(),
+            "_sailplane_auth=session; Path=/admin; HttpOnly".into(),
+            "__oidc_state=; Path=/admin/oidc/callback; Max-Age=0".into(),
+        );
+
+        let cookies: Vec<_> = response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|value| value.to_str().unwrap().to_string())
+            .collect();
+
+        assert_eq!(cookies.len(), 2, "both cookies must survive: {cookies:?}");
+        assert!(cookies.iter().any(|c| c.starts_with("_sailplane_auth=")));
+        assert!(cookies.iter().any(|c| c.starts_with("__oidc_state=")));
+        assert_eq!(
+            response.headers()[header::LOCATION],
+            "https://sailplane.example.com/admin/"
+        );
+    }
 }

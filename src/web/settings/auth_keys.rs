@@ -100,7 +100,7 @@ pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> Ap
             "own": principal.has(Capability::GenerateOwnAuthKeys),
             "linkedHeadscaleUserId": principal.linked_headscale_user(),
         },
-        "server": state.public_base(),
+        "server": state.headscale_public_base(),
     })))
 }
 
@@ -184,7 +184,7 @@ pub async fn create(
         // Shown to the user exactly once.
         "command": format!(
             "tailscale up --login-server={} --authkey={}",
-            state.public_base(),
+            state.headscale_public_base(),
             key.key
         ),
     })))

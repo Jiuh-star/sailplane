@@ -41,8 +41,24 @@ impl AppState {
         self.config.server.base_path()
     }
 
-    /// Base URL used for OIDC redirects and registration commands.
+    /// Public URL of Sailplane itself, without the base path. Builds the OIDC
+    /// redirect URIs and the sign-in redirects.
+    ///
+    /// Falls back to the Headscale URL when `server.base_url` is unset, which
+    /// matches single-domain deployments.
     pub fn public_base(&self) -> String {
+        self.config
+            .server
+            .base_url
+            .clone()
+            .unwrap_or_else(|| self.config.headscale.resolved_public_url())
+            .trim_end_matches('/')
+            .to_string()
+    }
+
+    /// Public URL of the Headscale instance. Registration commands point
+    /// machines here.
+    pub fn headscale_public_base(&self) -> String {
         self.config.headscale.resolved_public_url()
     }
 

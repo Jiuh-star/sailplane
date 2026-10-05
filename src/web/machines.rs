@@ -69,7 +69,7 @@ pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> Ap
             "disablingKeyExpiry": state.headscale.capabilities().key_expiry_can_be_disabled,
         },
         "agent": state.agent.status().await,
-        "server": state.public_base(),
+        "server": state.headscale_public_base(),
     })))
 }
 
