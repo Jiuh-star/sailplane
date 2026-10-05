@@ -1,0 +1,12 @@
+# The image build regenerates the frontend and the binary from source.
+.git
+.github
+.reference
+target
+web/node_modules
+web/.vite
+web/dist
+docs
+tests
+scripts
+*.log

@@ -1,11 +1,11 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo-light.svg" alt="Sailplane" width="96" height="96">
-  </picture>
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+  <img align="left" src="docs/assets/logo-light.svg" alt="Sailplane" width="128" height="128">
+</picture>
 
 # Sailplane
+
+<br clear="left">
 
 > **AI content disclosure.** The code, comments and documentation in this
 > repository are written by Anthropic's Claude Code, an AI coding agent, under
@@ -63,7 +63,8 @@ cargo build --release                    # embeds web/dist in the binary
 ```
 
 See [docs/INSTALLATION.md](docs/INSTALLATION.md) for the full guide, the
-reverse-proxy setup and a systemd unit.
+reverse-proxy setup and a systemd unit. Container images are published to
+`ghcr.io/jiuh-star/sailplane` for amd64 and arm64.
 
 ## Documentation
 

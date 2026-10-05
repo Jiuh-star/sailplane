@@ -93,7 +93,13 @@ after a change.
 
 ## Logo assets
 
-The mark is the same geometry in five files:
+The mark is a nine-dot grid on a 24-unit box, in the idiom of Tailscale's mark.
+Dot centres sit at `x, y ∈ {3, 12, 21}`. The wing row (`y = 12`) and the tail
+(`12, 21`) are solid discs of radius 3; the nose (`12, 3`) is a hollow ring in
+the brand color; the four corners are the same discs at 28% opacity, drawn as
+thin rings so the grid stays visible without competing with the glider.
+
+The same geometry lives in five files:
 
 - `web/public/logo.svg` (adaptive, no plate)
 - `web/public/favicon.svg` (adaptive, with plate)
@@ -101,8 +107,9 @@ The mark is the same geometry in five files:
 - `docs/assets/logo-light.svg` and `docs/assets/logo-dark.svg` (static, for the
   README)
 
-Change one, change all five. Check the favicon at 30 px and 16 px in both color
-schemes before committing.
+Change one, change all five. The README floats the mark left of the title, so
+the static files are read at 128 px. Check the favicon at 30 px and 16 px in
+both color schemes before committing.
 
 ## Tooling notes
 

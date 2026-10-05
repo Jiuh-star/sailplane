@@ -136,9 +136,52 @@ log.
 
 ## Containers
 
-No image is published. Build the binary and put it in an image of your choice.
-Mount the Headscale config file into the container when you want the DNS and
-restrictions pages.
+An image is published to GHCR for amd64 and arm64:
 
-The container needs the tailscaled socket for the agent, or a sidecar with its
-socket mounted. See [DEMO.md](DEMO.md) for a complete working example.
+| Tag | Source |
+| --- | --- |
+| `X.Y.Z`, `X.Y`, `latest` | A `vX.Y.Z` git tag |
+| `edge` | Every push to `main` |
+
+```yaml
+services:
+  sailplane:
+    image: ghcr.io/jiuh-star/sailplane:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config.yaml:/etc/sailplane/config.yaml:ro
+      - sailplane-data:/var/lib/sailplane
+
+volumes:
+  sailplane-data:
+```
+
+The container listens on port 3000 and runs as root, because the optional
+sockets below and the Headscale config file are root-owned by default. It
+contains no `tailscale` CLI; the agent reads the sidecar socket instead.
+
+Mounts:
+
+| Path | Purpose |
+| --- | --- |
+| `/etc/sailplane/config.yaml` | The configuration file. Required. |
+| `/var/lib/sailplane` | The data directory. Use a volume, not a network file system: SQLite runs in WAL mode. |
+| `/var/run/tailscale/tailscaled.sock` | The agent sidecar socket. Optional. |
+| `/var/run/docker.sock` | The Docker or Podman socket for the reload integration. Optional. |
+| The directory that holds `headscale.config_path` | Write access for the DNS and restrictions pages. Optional. |
+
+`GET <base_path>/healthz` reports readiness: it returns 500 while Headscale is
+unreachable. Validate a configuration file inside the image without starting
+the server:
+
+```sh
+docker run --rm -v ./config.yaml:/etc/sailplane/config.yaml:ro \
+  ghcr.io/jiuh-star/sailplane:latest --check
+```
+
+See [DEMO.md](DEMO.md) for a complete working example with the agent sidecar.
+
+The first push creates the GHCR package as private, even for a public
+repository. Set the package visibility to public before anonymous pulls work.
