@@ -7,12 +7,6 @@
 
 <br clear="left">
 
-> **AI content disclosure.** The code, comments and documentation in this
-> repository are written by Anthropic's Claude Code, an AI coding agent, under
-> the direction of one human maintainer. The maintainer sets the requirements,
-> reviews changes and runs the tests, but AI output can contain mistakes. Review
-> the code before you deploy it, and report problems in the issue tracker.
-
 Sailplane is a web UI for [Headscale](https://headscale.net). One binary serves
 the single-page app, the JSON API and the live event stream. With every feature
 enabled, the process stays under 50 MB RSS.
@@ -92,3 +86,9 @@ coupled locale keys on both sides.
 ## License
 
 MIT, matching upstream Headplane.
+
+> **AI content disclosure.** The code, comments and documentation in this
+> repository are written by Anthropic's Claude Code, an AI coding agent, under
+> the direction of one human maintainer. The maintainer sets the requirements,
+> reviews changes and runs the tests, but AI output can contain mistakes. Review
+> the code before you deploy it, and report problems in the issue tracker.
