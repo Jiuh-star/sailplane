@@ -134,7 +134,9 @@ impl AgentService {
             return AgentStatus::disabled(reason);
         }
         if !self.inner.config.enabled {
-            return AgentStatus::disabled("The Sailplane agent is not enabled in the configuration.");
+            return AgentStatus::disabled(
+                "The Sailplane agent is not enabled in the configuration.",
+            );
         }
 
         let state = self.inner.state.lock().await;
@@ -418,7 +420,10 @@ mod tests {
             auth_id_from_url("https://headscale.example.com/register/abc123?x=1").as_deref(),
             Some("abc123")
         );
-        assert_eq!(auth_id_from_url("https://example.com/a/b/").as_deref(), Some("b"));
+        assert_eq!(
+            auth_id_from_url("https://example.com/a/b/").as_deref(),
+            Some("b")
+        );
     }
 
     #[test]

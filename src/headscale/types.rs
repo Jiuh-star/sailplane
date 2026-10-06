@@ -88,6 +88,14 @@ impl Machine {
         tags
     }
 
+    /// Whether a route CIDR is a full-tunnel exit route (`0.0.0.0/0` or `::/0`).
+    ///
+    /// A dual-stack exit node advertises both, but that is one exit node, so
+    /// callers must collapse them rather than counting two.
+    pub fn is_exit_route(route: &str) -> bool {
+        route == "0.0.0.0/0" || route == "::/0"
+    }
+
     /// Returns the first CGNAT IPv4 address, falling back to any IPv4.
     pub fn ipv4(&self) -> Option<&str> {
         self.ip_addresses
@@ -128,7 +136,6 @@ impl Machine {
                 .is_some_and(|e| e.starts_with("0001-01-01"))
     }
 }
-
 
 /// Headscale serialises absent optional strings as `""`, not by omitting them.
 /// `Option<String>` alone would then yield `Some("")` and defeat UI fallbacks,
@@ -325,12 +332,14 @@ fn percent_decode(input: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len()
-            && let Ok(byte) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
-                out.push(byte);
-                i += 3;
-                continue;
-            }
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(byte) = u8::from_str_radix(&input[i + 1..i + 3], 16)
+        {
+            out.push(byte);
+            i += 3;
+            continue;
+        }
         out.push(bytes[i]);
         i += 1;
     }
@@ -401,8 +410,7 @@ mod tests {
         // `label` then falls back to the username rather than an empty string.
         assert_eq!(user.label(), "alice");
 
-        let machine: Machine =
-            serde_json::from_str(r#"{"id":"1","expiry":""}"#).unwrap();
+        let machine: Machine = serde_json::from_str(r#"{"id":"1","expiry":""}"#).unwrap();
         assert_eq!(machine.expiry, None);
         assert!(machine.expiry_disabled());
     }

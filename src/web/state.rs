@@ -9,6 +9,7 @@ use axum::http::request::Parts;
 use crate::agent::AgentService;
 use crate::auth::{AuthService, Principal};
 use crate::config::Config;
+use crate::config::store::Settings;
 use crate::db::Db;
 use crate::headscale::{Headscale, LiveStore};
 use crate::hsconfig::HeadscaleConfigFile;
@@ -18,7 +19,11 @@ use super::error::ApiError;
 
 /// Everything a handler needs.
 pub struct AppState {
-    pub config: Arc<Config>,
+    /// Runtime configuration. Read a fresh snapshot per request so a saved
+    /// setting takes effect without a restart.
+    pub settings: Settings,
+    /// The base path, fixed for the process lifetime.
+    pub prefix: String,
     pub db: Db,
     pub auth: AuthService,
     pub headscale: Headscale,
@@ -37,8 +42,22 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// The current configuration snapshot.
+    pub fn config(&self) -> Arc<Config> {
+        self.settings.snapshot()
+    }
+
+    /// Rebuilds the settings snapshot and repoints the Headscale client at the
+    /// possibly-changed URL, so a saved setting takes effect immediately rather
+    /// than on the next poll.
+    pub fn reload_settings(&self) -> anyhow::Result<()> {
+        self.settings.reload(&self.db)?;
+        self.headscale.set_base_url(&self.config().headscale.url);
+        Ok(())
+    }
+
     pub fn prefix(&self) -> &str {
-        self.config.server.base_path()
+        &self.prefix
     }
 
     /// Public URL of Sailplane itself, without the base path. Builds the OIDC
@@ -47,11 +66,12 @@ impl AppState {
     /// Falls back to the Headscale URL when `server.base_url` is unset, which
     /// matches single-domain deployments.
     pub fn public_base(&self) -> String {
-        self.config
+        let config = self.config();
+        config
             .server
             .base_url
             .clone()
-            .unwrap_or_else(|| self.config.headscale.resolved_public_url())
+            .unwrap_or_else(|| config.headscale.resolved_public_url())
             .trim_end_matches('/')
             .to_string()
     }
@@ -59,12 +79,17 @@ impl AppState {
     /// Public URL of the Headscale instance. Registration commands point
     /// machines here.
     pub fn headscale_public_base(&self) -> String {
-        self.config.headscale.resolved_public_url()
+        self.config().headscale.resolved_public_url()
     }
 
     /// The API key every server-initiated Headscale call should use.
     pub fn admin_api_key(&self) -> Option<String> {
-        self.config.headscale.api_key.clone()
+        self.config().headscale.api_key.clone()
+    }
+
+    /// The cookie signing secret, owned so it outlives a snapshot borrow.
+    pub fn cookie_secret(&self) -> String {
+        self.config().cookie_secret().to_string()
     }
 
     /// An API client authenticated as the given principal.
@@ -81,6 +106,35 @@ impl AppState {
     /// The client used for server-initiated work (live store, policy reads).
     pub fn admin_client(&self) -> Option<crate::headscale::ApiClient> {
         self.admin_api_key().map(|key| self.headscale.client(key))
+    }
+
+    /// Facts for evaluating dynamic autogroups.
+    ///
+    /// `autogroup:admin` maps to Sailplane owner/admin accounts linked to a
+    /// Headscale user. Headscale has no admin user concept, so this is the
+    /// closest available meaning.
+    pub async fn eval_context(&self) -> crate::acl::eval::EvalContext {
+        let users = match self.db.run(crate::db::list_users).await {
+            Ok(users) => users,
+            Err(err) => {
+                tracing::warn!("could not read accounts for autogroup:admin: {err:#}");
+                return crate::acl::eval::EvalContext::default();
+            }
+        };
+
+        let admins = users
+            .into_iter()
+            .filter(|user| {
+                matches!(
+                    user.role,
+                    crate::auth::Role::Owner | crate::auth::Role::Admin
+                )
+            })
+            .filter(|user| user.headscale_user_id.is_some())
+            .filter_map(|user| user.name)
+            .collect();
+
+        crate::acl::eval::EvalContext { admins }
     }
 }
 
@@ -100,50 +154,45 @@ pub async fn resolve_principal(
     peer: Option<IpAddr>,
     headers: &axum::http::HeaderMap,
 ) -> Option<Principal> {
-    if let Some(proxy_config) = state
-        .config
+    let config = state.config();
+    if let Some(proxy_config) = config
         .server
         .proxy_auth
         .as_ref()
         .filter(|config| config.enabled)
         && let Some(peer) = peer
-            && let Some(identity) = crate::auth::proxy::resolve(proxy_config, peer, |name| {
-                headers
-                    .get(name)
-                    .and_then(|value| value.to_str().ok())
-                    .map(str::to_string)
-            }) {
-                match state
-                    .auth
-                    .find_or_create_user(
-                        &identity.subject,
-                        identity.name.as_deref(),
-                        identity.email.as_deref(),
-                        identity.picture.as_deref(),
-                        state
-                            .config
-                            .oidc
-                            .as_ref()
-                            .map(|oidc| crate::auth::Role::parse(&oidc.default_role))
-                            .unwrap_or_default(),
-                        None,
-                    )
-                    .await
-                {
-                    Ok(user) => return Some(Principal::Proxy { user }),
-                    Err(err) => {
-                        tracing::error!("proxy auth could not resolve a user: {err:#}");
-                        return None;
-                    }
-                }
+        && let Some(identity) = crate::auth::proxy::resolve(proxy_config, peer, |name| {
+            headers
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string)
+        })
+    {
+        match state
+            .auth
+            .find_or_create_user(
+                &identity.subject,
+                identity.name.as_deref(),
+                identity.email.as_deref(),
+                identity.picture.as_deref(),
+                config
+                    .oidc
+                    .as_ref()
+                    .map(|oidc| crate::auth::Role::parse(&oidc.default_role))
+                    .unwrap_or_default(),
+                None,
+            )
+            .await
+        {
+            Ok(user) => return Some(Principal::Proxy { user }),
+            Err(err) => {
+                tracing::error!("proxy auth could not resolve a user: {err:#}");
+                return None;
             }
+        }
+    }
 
-    state
-        .auth
-        .resolve_session(cookie)
-        .await
-        .ok()
-        .flatten()
+    state.auth.resolve_session(cookie).await.ok().flatten()
 }
 
 impl FromRequestParts<SharedState> for MaybeAuth {
@@ -154,7 +203,10 @@ impl FromRequestParts<SharedState> for MaybeAuth {
         state: &SharedState,
     ) -> Result<Self, Self::Rejection> {
         let cookie = crate::auth::session::read_cookie(
-            parts.headers.get(axum::http::header::COOKIE).and_then(|v| v.to_str().ok()),
+            parts
+                .headers
+                .get(axum::http::header::COOKIE)
+                .and_then(|v| v.to_str().ok()),
             crate::auth::session::SESSION_COOKIE,
         );
         let peer = parts

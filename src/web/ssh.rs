@@ -147,7 +147,9 @@ pub async fn connect(
     let shutdown = state.shutdown.clone();
     Ok(ws
         .on_upgrade(move |socket| {
-            bridge(socket, service, host, port, username, cols, rows, label, shutdown)
+            bridge(
+                socket, service, host, port, username, cols, rows, label, shutdown,
+            )
         })
         .into_response())
 }

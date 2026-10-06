@@ -76,9 +76,8 @@ impl KubernetesIntegration {
         };
 
         let client = self.build_client()?;
-        let url = format!(
-            "https://kubernetes.default.svc/api/v1/namespaces/{namespace}/pods/{pod_name}"
-        );
+        let url =
+            format!("https://kubernetes.default.svc/api/v1/namespaces/{namespace}/pods/{pod_name}");
 
         let response = client
             .get(&url)
@@ -142,7 +141,9 @@ impl KubernetesIntegration {
             }
         }
 
-        builder.build().context("failed to build the Kubernetes HTTP client")
+        builder
+            .build()
+            .context("failed to build the Kubernetes HTTP client")
     }
 }
 

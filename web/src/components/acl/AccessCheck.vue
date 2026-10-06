@@ -40,11 +40,25 @@ const evaluated = ref<'saved' | 'draft' | null>(null)
 const failure = ref<string | null>(null)
 const running = ref(false)
 
-/** Anything the field could name: users, groups, tags, hosts, machines. */
-const suggestions = computed(() => {
+/** Anything the source field could name, including dynamic autogroups. */
+const sourceSuggestions = computed(() => {
   const s = props.selectors
   if (!s) return []
-  return [...s.users, ...s.groups, ...s.tags, ...s.hosts, ...s.machines]
+  return [
+    ...s.users,
+    ...s.groups,
+    ...s.tags,
+    ...s.hosts,
+    ...s.machines,
+    ...(s.autogroups?.source ?? []),
+  ]
+})
+
+/** The destination field names hosts, tags and machines, not users. */
+const destinationSuggestions = computed(() => {
+  const s = props.selectors
+  if (!s) return []
+  return [...s.tags, ...s.hosts, ...s.machines, ...(s.autogroups?.destination ?? [])]
 })
 
 const destinations = computed(() =>
@@ -111,7 +125,7 @@ function machineLabel(machine: { name: string; addresses: string[]; user: string
             <Input
               id="check-src"
               v-model="src"
-              list="acl-selectors"
+              list="acl-source-selectors"
               autocomplete="off"
               spellcheck="false"
               :placeholder="t('acls.check.sourcePlaceholder')"
@@ -123,7 +137,7 @@ function machineLabel(machine: { name: string; addresses: string[]; user: string
             <Input
               id="check-dst"
               v-model="dst"
-              list="acl-selectors"
+              list="acl-dest-selectors"
               autocomplete="off"
               spellcheck="false"
               :placeholder="t('acls.check.destinationPlaceholder')"
@@ -135,8 +149,11 @@ function machineLabel(machine: { name: string; addresses: string[]; user: string
           </div>
         </div>
 
-        <datalist id="acl-selectors">
-          <option v-for="option in suggestions" :key="option" :value="option" />
+        <datalist id="acl-source-selectors">
+          <option v-for="option in sourceSuggestions" :key="option" :value="option" />
+        </datalist>
+        <datalist id="acl-dest-selectors">
+          <option v-for="option in destinationSuggestions" :key="option" :value="option" />
         </datalist>
 
         <div class="flex flex-wrap items-end gap-4">
@@ -336,9 +353,13 @@ function machineLabel(machine: { name: string; addresses: string[]; user: string
               </tr>
             </thead>
             <tbody>
-              <tr v-for="rule in report.rules" :key="rule.index" class="border-t">
+              <tr v-for="rule in report.rules" :key="`${rule.kind}-${rule.index}`" class="border-t">
                 <td class="py-2 font-mono" :data-label="t('acls.check.ruleNumber')">{{ rule.index + 1 }}</td>
-                <td class="py-2" :data-label="t('acls.check.ruleAction')">{{ rule.action }}</td>
+                <td class="py-2" :data-label="t('acls.check.ruleAction')">
+                  <!-- Index alone is not unique across sections; the kind disambiguates. -->
+                  <Badge variant="outline" class="mr-1.5">{{ rule.kind.toUpperCase() }}</Badge>
+                  {{ rule.action }}
+                </td>
                 <td class="py-2 font-mono text-xs" :data-label="t('acls.check.ruleSrc')">{{ rule.src.join(', ') }}</td>
                 <td class="py-2 font-mono text-xs" :data-label="t('acls.check.ruleDst')">{{ rule.dst.join(', ') }}</td>
                 <td class="py-2 text-right" :data-label="t('acls.check.ruleResult')">
@@ -364,7 +385,7 @@ function machineLabel(machine: { name: string; addresses: string[]; user: string
         <CardContent>
           <table class="w-full text-sm">
             <tbody>
-              <tr v-for="rule in report.ssh_rules" :key="rule.index" class="border-t">
+              <tr v-for="rule in report.ssh_rules" :key="`${rule.kind}-${rule.index}`" class="border-t">
                 <td class="w-10 py-2 font-mono" :data-label="t('acls.check.ruleNumber')">{{ rule.index + 1 }}</td>
                 <td class="py-2" :data-label="t('acls.check.ruleAction')">{{ rule.action }}</td>
                 <td class="py-2 font-mono text-xs" :data-label="t('acls.check.ruleSrc')">{{ rule.src.join(', ') }}</td>

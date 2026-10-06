@@ -19,7 +19,10 @@ use super::state::{Auth, SharedState};
 const HEARTBEAT: Duration = Duration::from_secs(15);
 
 /// Streams live snapshot changes over SSE. `GET /events/live`
-pub async fn stream(axum::extract::State(state): axum::extract::State<SharedState>, Auth(_principal): Auth) -> Response {
+pub async fn stream(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+    Auth(_principal): Auth,
+) -> Response {
     let live = state.live.clone();
 
     // Snapshot versions at subscribe time, then stream every change.
@@ -65,10 +68,6 @@ pub async fn stream(axum::extract::State(state): axum::extract::State<SharedStat
     };
 
     Sse::new(stream)
-        .keep_alive(
-            KeepAlive::new()
-                .interval(HEARTBEAT)
-                .text("heartbeat"),
-        )
+        .keep_alive(KeepAlive::new().interval(HEARTBEAT).text("heartbeat"))
         .into_response()
 }

@@ -30,9 +30,12 @@ impl Capability {
     pub const WriteTailnet: Capability = Capability(1 << 14);
     pub const Owner: Capability = Capability(1 << 15);
     pub const GenerateOwnAuthKeys: Capability = Capability(1 << 16);
+    /// Change Sailplane's own deployment settings (Headscale connection, OIDC,
+    /// integrations). Owner only.
+    pub const ConfigureSailplane: Capability = Capability(1 << 17);
 
     /// All bits set; used by the owner role and API-key principals.
-    pub const ALL: Capability = Capability((1 << 17) - 1);
+    pub const ALL: Capability = Capability((1 << 18) - 1);
 }
 
 impl std::ops::BitOr for Capability {
@@ -148,7 +151,9 @@ impl Role {
 
         match self {
             Self::Owner => CapabilitySet::from_bits(C::ALL.0),
-            Self::Admin => CapabilitySet::from_bits(C::ALL.0 & !C::Owner.0 & !C::GenerateOwnAuthKeys.0),
+            Self::Admin => {
+                CapabilitySet::from_bits(C::ALL.0 & !C::Owner.0 & !C::GenerateOwnAuthKeys.0)
+            }
             Self::NetworkAdmin => CapabilitySet::NONE
                 .union(C::UiAccess.into())
                 .union(C::ReadPolicy.into())

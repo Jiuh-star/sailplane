@@ -14,7 +14,10 @@ use super::presentation::MachineView;
 use super::state::{Auth, SharedState};
 
 /// Lists machines with their host info and the versions the UI needs. `GET /api/machines`
-pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn list(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     if !principal.has(Capability::ReadMachines) {
         return Err(ApiError::forbidden(
             "Your account does not have access to machines",
@@ -28,9 +31,7 @@ pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> Ap
     let views: Vec<MachineView> = nodes
         .data
         .iter()
-        .map(|node| {
-            MachineView::build(node, host_info.get(&node.node_key))
-        })
+        .map(|node| MachineView::build(node, host_info.get(&node.node_key)))
         .collect();
 
     // Declared tags come from the ACL policy. A missing or unreadable policy
@@ -134,9 +135,10 @@ async fn writable_node(
 /// Refreshes the live snapshot so connected browsers see the change.
 async fn refresh(state: &SharedState) {
     if let Some(client) = state.admin_client()
-        && let Ok(nodes) = client.list_nodes().await {
-            state.live.set_nodes(nodes).await;
-        }
+        && let Ok(nodes) = client.list_nodes().await
+    {
+        state.live.set_nodes(nodes).await;
+    }
 }
 
 #[derive(Deserialize)]
@@ -187,7 +189,10 @@ pub fn normalise_registration_key(
     if capabilities.register_key_includes_auth_req_prefix {
         return trimmed.to_string();
     }
-    trimmed.strip_prefix("hskey-authreq-").unwrap_or(trimmed).to_string()
+    trimmed
+        .strip_prefix("hskey-authreq-")
+        .unwrap_or(trimmed)
+        .to_string()
 }
 
 #[derive(Deserialize)]
@@ -417,7 +422,10 @@ mod tests {
     #[test]
     fn registration_key_prefix_is_stripped_below_029() {
         let old = ServerVersion::parse("v0.28.0").capabilities();
-        assert_eq!(normalise_registration_key("hskey-authreq-abc123", old), "abc123");
+        assert_eq!(
+            normalise_registration_key("hskey-authreq-abc123", old),
+            "abc123"
+        );
         assert_eq!(normalise_registration_key("abc123", old), "abc123");
 
         let new = ServerVersion::parse("v0.29.0").capabilities();

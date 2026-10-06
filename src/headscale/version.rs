@@ -116,6 +116,11 @@ impl ServerVersion {
             node_owner_is_immutable: self.at_least(0, 28, 0),
             register_key_includes_auth_req_prefix: self.at_least(0, 29, 0),
             key_expiry_can_be_disabled: self.at_least(0, 29, 0),
+            // Headscale's support for the `grants` syntax is version dependent
+            // and newer than the parsing here. Parsing and round-tripping never
+            // depend on this flag; it only decides whether the structured
+            // Grants editor is offered.
+            grants_supported: self.at_least(0, 27, 0),
         }
     }
 }
@@ -143,6 +148,8 @@ pub struct Capabilities {
     pub register_key_includes_auth_req_prefix: bool,
     /// Key expiry can be toggled (0.29+).
     pub key_expiry_can_be_disabled: bool,
+    /// The server accepts the `grants` access syntax in a policy.
+    pub grants_supported: bool,
 }
 
 impl Default for Capabilities {
@@ -179,10 +186,7 @@ impl Capabilities {
 
 fn parse_semver(input: &str) -> Option<Semver> {
     // Strip build/prerelease metadata.
-    let core = input
-        .split(['+', '-'])
-        .next()
-        .unwrap_or(input);
+    let core = input.split(['+', '-']).next().unwrap_or(input);
     let mut parts = core.split('.');
     let major = parts.next()?.parse().ok()?;
     let minor = parts.next().unwrap_or("0").parse().ok()?;

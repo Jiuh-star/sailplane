@@ -184,9 +184,10 @@ async fn authenticate(
     }
 
     if let Some(path) = config.private_key_path.as_ref()
-        && try_public_key(session, username, path).await? {
-            return Ok(());
-        }
+        && try_public_key(session, username, path).await?
+    {
+        return Ok(());
+    }
 
     if let Some(password) = config.password.as_deref() {
         let result = session

@@ -66,7 +66,11 @@ pub async fn serve(
 
     // A request for a missing asset with an extension is a genuine 404; a path
     // without one is a client-side route and gets the shell.
-    if relative.rsplit('/').next().is_some_and(|last| last.contains('.')) {
+    if relative
+        .rsplit('/')
+        .next()
+        .is_some_and(|last| last.contains('.'))
+    {
         return not_found();
     }
 
@@ -222,10 +226,7 @@ fn html_response(bytes: Vec<u8>) -> Response {
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("text/html; charset=utf-8"),
             ),
-            (
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("no-cache"),
-            ),
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
         ],
         Body::from(bytes),
     )
@@ -266,7 +267,10 @@ mod tests {
 
     #[test]
     fn mime_types_cover_the_bundle() {
-        assert_eq!(mime_for("assets/index-abc.js"), "text/javascript; charset=utf-8");
+        assert_eq!(
+            mime_for("assets/index-abc.js"),
+            "text/javascript; charset=utf-8"
+        );
         assert_eq!(mime_for("index.html"), "text/html; charset=utf-8");
         assert_eq!(mime_for("app.wasm"), "application/wasm");
         assert_eq!(mime_for("unknown.bin"), "application/octet-stream");

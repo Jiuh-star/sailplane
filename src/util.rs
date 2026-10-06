@@ -71,9 +71,7 @@ pub fn is_valid_dns_name(s: &str) -> bool {
                 && label.len() <= 63
                 && !label.starts_with('-')
                 && !label.ends_with('-')
-                && label
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '-')
+                && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
         })
 }
 

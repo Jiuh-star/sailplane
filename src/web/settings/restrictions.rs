@@ -40,7 +40,10 @@ impl RestrictionKind {
 }
 
 /// Returns the OIDC restrictions. `GET /api/restrictions`
-pub async fn get(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn get(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     if !principal.has(Capability::ReadUsers) {
         return Err(ApiError::forbidden(
             "Your account does not have access to authentication restrictions",

@@ -210,7 +210,9 @@ mod tests {
         let store = LiveStore::new();
         let mut rx = store.subscribe();
         store
-            .set_users(vec![serde_json::from_str(r#"{"id":"1","name":"u"}"#).unwrap()])
+            .set_users(vec![
+                serde_json::from_str(r#"{"id":"1","name":"u"}"#).unwrap(),
+            ])
             .await;
 
         let event = rx.recv().await.unwrap();

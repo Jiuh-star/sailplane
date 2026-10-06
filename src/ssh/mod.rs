@@ -13,7 +13,6 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 
-
 use crate::config::SshConfig;
 
 pub use session::SessionHandle;
@@ -142,8 +141,14 @@ mod tests {
 
     #[test]
     fn proxy_schemes_are_stripped() {
-        assert_eq!(parse_proxy("socks5://127.0.0.1:1080").unwrap(), "127.0.0.1:1080");
-        assert_eq!(parse_proxy("socks5h://127.0.0.1:1080").unwrap(), "127.0.0.1:1080");
+        assert_eq!(
+            parse_proxy("socks5://127.0.0.1:1080").unwrap(),
+            "127.0.0.1:1080"
+        );
+        assert_eq!(
+            parse_proxy("socks5h://127.0.0.1:1080").unwrap(),
+            "127.0.0.1:1080"
+        );
         assert_eq!(parse_proxy("127.0.0.1:1080").unwrap(), "127.0.0.1:1080");
         assert!(parse_proxy("socks5://").is_err());
     }

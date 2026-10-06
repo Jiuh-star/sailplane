@@ -9,10 +9,11 @@ pub mod machines;
 pub mod middleware;
 pub mod presentation;
 pub mod settings;
+pub mod setup;
 pub mod ssh;
 pub mod state;
-pub mod topology;
 pub mod static_files;
+pub mod topology;
 pub mod users;
 pub mod util;
 
@@ -53,7 +54,10 @@ pub fn router(state: SharedState) -> Router {
         // --- Sailplane accounts ---
         .route("/accounts/{id}/role", post(users::reassign_role))
         .route("/accounts/{id}/link", post(users::link))
-        .route("/accounts/{id}/transfer-ownership", post(users::transfer_ownership))
+        .route(
+            "/accounts/{id}/transfer-ownership",
+            post(users::transfer_ownership),
+        )
         .route("/accounts/{id}", delete(users::delete_account))
         // --- Access control ---
         .route("/acl", get(acl::get_policy))
@@ -66,9 +70,18 @@ pub fn router(state: SharedState) -> Router {
         .route("/dns/tailnet", post(settings::dns::rename_tailnet))
         .route("/dns/magic", post(settings::dns::toggle_magic))
         .route("/dns/nameservers", post(settings::dns::add_nameserver))
-        .route("/dns/nameservers/remove", post(settings::dns::remove_nameserver))
-        .route("/dns/search-domains", post(settings::dns::add_search_domain))
-        .route("/dns/search-domains/remove", post(settings::dns::remove_search_domain))
+        .route(
+            "/dns/nameservers/remove",
+            post(settings::dns::remove_nameserver),
+        )
+        .route(
+            "/dns/search-domains",
+            post(settings::dns::add_search_domain),
+        )
+        .route(
+            "/dns/search-domains/remove",
+            post(settings::dns::remove_search_domain),
+        )
         .route("/dns/records", post(settings::dns::add_record))
         .route("/dns/records/remove", post(settings::dns::remove_record))
         .route("/dns/override", post(settings::dns::set_override))
@@ -88,6 +101,15 @@ pub fn router(state: SharedState) -> Router {
         .route("/restrictions", post(settings::restrictions::update))
         .route("/agent", get(settings::agent::status))
         .route("/agent/sync", post(settings::agent::sync))
+        // --- Sailplane's own settings ---
+        .route("/settings", get(settings::sailplane::get))
+        .route("/settings", put(settings::sailplane::update))
+        .route("/settings/validate", post(settings::sailplane::validate))
+        .route("/settings/import", post(settings::sailplane::import))
+        // --- First-run onboarding (public until complete) ---
+        .route("/setup/status", get(setup::status))
+        .route("/setup/test-headscale", post(setup::test_headscale))
+        .route("/setup/complete", post(setup::complete))
         // --- Browser SSH ---
         .route("/ssh/{id}", get(ssh::info))
         .route("/ssh/{id}/ws", get(ssh::connect));
@@ -116,9 +138,12 @@ pub fn router(state: SharedState) -> Router {
     };
 
     let audited = state.clone();
-    app.layer(axum::middleware::from_fn_with_state(audited, middleware::audit))
-        .layer(axum::middleware::from_fn(middleware::security_headers))
-        .layer(axum::middleware::from_fn(middleware::origin_check))
-        .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
-        .with_state(state)
+    app.layer(axum::middleware::from_fn_with_state(
+        audited,
+        middleware::audit,
+    ))
+    .layer(axum::middleware::from_fn(middleware::security_headers))
+    .layer(axum::middleware::from_fn(middleware::origin_check))
+    .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
+    .with_state(state)
 }

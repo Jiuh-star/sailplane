@@ -47,11 +47,7 @@ pub async fn origin_check(request: Request, next: Next) -> Response {
 /// The actor is resolved here rather than read from the handler: request
 /// extensions set by an extractor do not survive into the response, and a
 /// failed request (a 403, for example) is worth recording.
-pub async fn audit(
-    State(state): State<SharedState>,
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn audit(State(state): State<SharedState>, request: Request, next: Next) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_string();
     let state_changing = !matches!(
@@ -91,7 +87,9 @@ pub async fn audit(
 /// The account behind a request, as `(label, role)`.
 async fn actor_for(state: &SharedState, headers: &axum::http::HeaderMap) -> (String, String) {
     let cookie = crate::auth::session::read_cookie(
-        headers.get(header::COOKIE).and_then(|value| value.to_str().ok()),
+        headers
+            .get(header::COOKIE)
+            .and_then(|value| value.to_str().ok()),
         crate::auth::session::SESSION_COOKIE,
     );
 

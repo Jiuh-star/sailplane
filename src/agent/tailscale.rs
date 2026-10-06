@@ -198,13 +198,14 @@ fn map_netmap(netmap: &Value) -> HashMap<String, Value> {
     }
 
     if let Some(self_node) = netmap.get("SelfNode")
-        && let Some(key) = self_node.get("Key").and_then(Value::as_str) {
-            let mut info = host_info_from_netmap_node(self_node);
-            if let Some(map) = info.as_object_mut() {
-                map.insert("SailplaneAgent".into(), Value::Bool(true));
-            }
-            hosts.insert(key.to_string(), info);
+        && let Some(key) = self_node.get("Key").and_then(Value::as_str)
+    {
+        let mut info = host_info_from_netmap_node(self_node);
+        if let Some(map) = info.as_object_mut() {
+            map.insert("SailplaneAgent".into(), Value::Bool(true));
         }
+        hosts.insert(key.to_string(), info);
+    }
 
     hosts
 }
@@ -235,9 +236,10 @@ fn host_info_from_netmap_node(node: &Value) -> Value {
             "RequestTags",
         ] {
             if let Some(value) = hostinfo.get(key)
-                && !value.is_null() {
-                    info.insert(key.into(), value.clone());
-                }
+                && !value.is_null()
+            {
+                info.insert(key.into(), value.clone());
+            }
         }
     }
 
@@ -248,9 +250,10 @@ fn host_info_from_netmap_node(node: &Value) -> Value {
         info.insert("TailscaleIPs".into(), Value::Array(addresses.clone()));
     }
     if let Some(derp) = node.get("HomeDERP")
-        && !derp.is_null() {
-            info.insert("HomeDERP".into(), derp.clone());
-        }
+        && !derp.is_null()
+    {
+        info.insert("HomeDERP".into(), derp.clone());
+    }
     if let Some(online) = node.get("Online") {
         info.insert("Online".into(), online.clone());
     }
@@ -304,17 +307,20 @@ fn host_info_from_status_peer(peer: &Value) -> Value {
             "NetInfo",
         ] {
             if let Some(value) = hostinfo.get(key)
-                && !value.is_null() {
-                    info.insert(key.into(), value.clone());
-                }
+                && !value.is_null()
+            {
+                info.insert(key.into(), value.clone());
+            }
         }
     }
 
     for (field, target) in [("HostName", "Hostname"), ("OS", "OS")] {
         if let Some(value) = peer.get(field).and_then(Value::as_str)
-            && !value.is_empty() && !info.contains_key(target) {
-                info.insert(target.into(), Value::String(value.into()));
-            }
+            && !value.is_empty()
+            && !info.contains_key(target)
+        {
+            info.insert(target.into(), Value::String(value.into()));
+        }
     }
 
     if let Some(addresses) = peer.get("TailscaleIPs").and_then(Value::as_array) {
@@ -323,16 +329,18 @@ fn host_info_from_status_peer(peer: &Value) -> Value {
 
     // The direct address when connected, otherwise the relay.
     if let Some(cur_addr) = peer.get("CurAddr").and_then(Value::as_str)
-        && !cur_addr.is_empty() {
-            info.insert(
-                "Endpoints".into(),
-                Value::Array(vec![Value::String(cur_addr.into())]),
-            );
-        }
+        && !cur_addr.is_empty()
+    {
+        info.insert(
+            "Endpoints".into(),
+            Value::Array(vec![Value::String(cur_addr.into())]),
+        );
+    }
     if let Some(relay) = peer.get("Relay").and_then(Value::as_str)
-        && !relay.is_empty() {
-            info.insert("HomeDERP".into(), Value::String(relay.into()));
-        }
+        && !relay.is_empty()
+    {
+        info.insert("HomeDERP".into(), Value::String(relay.into()));
+    }
 
     if let Some(tags) = peer.get("Tags").and_then(Value::as_array) {
         info.insert("RequestTags".into(), Value::Array(tags.clone()));
@@ -351,15 +359,16 @@ fn host_info_from_status_peer(peer: &Value) -> Value {
     // A peer that advertises the SSH capability but predates `sshHostKeys`
     // still counts as reachable over Tailscale SSH.
     if !info.contains_key("sshHostKeys")
-        && let Some(capabilities) = peer.get("Capabilities").and_then(Value::as_array) {
-            let has_ssh = capabilities
-                .iter()
-                .filter_map(Value::as_str)
-                .any(|capability| capability.contains("ssh"));
-            if has_ssh {
-                info.insert("sshHostKeys".into(), Value::Array(vec![]));
-            }
+        && let Some(capabilities) = peer.get("Capabilities").and_then(Value::as_array)
+    {
+        let has_ssh = capabilities
+            .iter()
+            .filter_map(Value::as_str)
+            .any(|capability| capability.contains("ssh"));
+        if has_ssh {
+            info.insert("sshHostKeys".into(), Value::Array(vec![]));
         }
+    }
 
     Value::Object(info)
 }

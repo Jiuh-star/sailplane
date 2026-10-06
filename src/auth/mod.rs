@@ -5,11 +5,9 @@ pub mod proxy;
 pub mod roles;
 pub mod session;
 
-use std::sync::Arc;
-
 use anyhow::{Context, Result};
 
-use crate::config::Config;
+use crate::config::store::Settings;
 use crate::db::{Db, SailplaneUser, Session, SessionKind};
 use crate::headscale::Machine;
 
@@ -77,7 +75,6 @@ impl Principal {
         self.capabilities().contains_all(capabilities)
     }
 
-
     /// Reports whether this principal may modify the given node.
     ///
     /// API-key principals and `write_machines` holders may edit any node. Others
@@ -105,24 +102,25 @@ impl Principal {
 #[derive(Clone)]
 pub struct AuthService {
     db: Db,
-    config: Arc<Config>,
+    settings: Settings,
 }
 
 impl AuthService {
-    pub fn new(db: Db, config: Arc<Config>) -> Self {
-        Self { db, config }
+    pub fn new(db: Db, settings: Settings) -> Self {
+        Self { db, settings }
     }
     /// Cookie options for the session cookie.
     pub fn cookie_options(&self) -> CookieOptions {
+        let config = self.settings.snapshot();
         CookieOptions {
-            secure: self.config.server.cookie_secure,
+            secure: config.server.cookie_secure,
             http_only: true,
-            max_age_seconds: self.config.server.cookie_max_age,
-            domain: self.config.server.cookie_domain.clone(),
-            path: if self.config.server.base_path.is_empty() {
+            max_age_seconds: config.server.cookie_max_age,
+            domain: config.server.cookie_domain.clone(),
+            path: if config.server.base_path.is_empty() {
                 "/".into()
             } else {
-                self.config.server.base_path.clone()
+                config.server.base_path.clone()
             },
             same_site: SameSite::Lax,
         }
@@ -133,22 +131,25 @@ impl AuthService {
         let Some(cookie) = cookie else {
             return Ok(None);
         };
-        let Some(payload) = session::decode_cookie(cookie, self.config.cookie_secret()) else {
+        let config = self.settings.snapshot();
+        let Some(payload) = session::decode_cookie(cookie, config.cookie_secret()) else {
             return Ok(None);
         };
 
         let db = self.db.clone();
         let sid = payload.sid.clone();
-        let session = db.run(move |conn| {
-            let session = conn
-                .query_row(
-                    "SELECT * FROM auth_sessions WHERE id = ?1",
-                    rusqlite::params![sid],
-                    Session::from_row,
-                )
-                .ok();
-            Ok(session)
-        }).await?;
+        let session = db
+            .run(move |conn| {
+                let session = conn
+                    .query_row(
+                        "SELECT * FROM auth_sessions WHERE id = ?1",
+                        rusqlite::params![sid],
+                        Session::from_row,
+                    )
+                    .ok();
+                Ok(session)
+            })
+            .await?;
 
         let Some(session) = session else {
             return Ok(None);
@@ -158,7 +159,10 @@ impl AuthService {
             let db = self.db.clone();
             let sid = session.id.clone();
             db.run(move |conn| {
-                conn.execute("DELETE FROM auth_sessions WHERE id = ?1", rusqlite::params![sid])?;
+                conn.execute(
+                    "DELETE FROM auth_sessions WHERE id = ?1",
+                    rusqlite::params![sid],
+                )?;
                 Ok(())
             })
             .await?;
@@ -184,15 +188,17 @@ impl AuthService {
                     return Ok(None);
                 };
                 let db = self.db.clone();
-                let user = db.run(move |conn| {
-                    Ok(conn
-                        .query_row(
-                            "SELECT * FROM users WHERE id = ?1",
-                            rusqlite::params![user_id],
-                            SailplaneUser::from_row,
-                        )
-                        .ok())
-                }).await?;
+                let user = db
+                    .run(move |conn| {
+                        Ok(conn
+                            .query_row(
+                                "SELECT * FROM users WHERE id = ?1",
+                                rusqlite::params![user_id],
+                                SailplaneUser::from_row,
+                            )
+                            .ok())
+                    })
+                    .await?;
 
                 let Some(user) = user else {
                     return Ok(None);
@@ -285,7 +291,8 @@ impl AuthService {
         let Some(cookie) = cookie else {
             return Ok(());
         };
-        let Some(payload) = session::decode_cookie(cookie, self.config.cookie_secret()) else {
+        let config = self.settings.snapshot();
+        let Some(payload) = session::decode_cookie(cookie, config.cookie_secret()) else {
             return Ok(());
         };
         self.db.delete_session(&payload.sid)
@@ -313,16 +320,14 @@ impl AuthService {
                             .expiration
                             .as_deref()
                             .and_then(crate::util::parse_rfc3339)
-                            .unwrap_or_else(|| {
-                                chrono::Utc::now() + chrono::Duration::days(365)
-                            });
+                            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(365));
                         Ok(Ok(ApiKeyValidation {
                             display_name: format!("{}…", key.matchable_prefix()),
                             expires_at,
                         }))
                     }
                     None => Ok(Err(
-                        "That API key was not found on this Headscale server".into(),
+                        "That API key was not found on this Headscale server".into()
                     )),
                 }
             }

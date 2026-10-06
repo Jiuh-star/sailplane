@@ -17,7 +17,7 @@ pub use models::{AuditEntry, SailplaneUser, Session, SessionKind};
 use crate::auth::roles::Role;
 
 /// Current schema version; incremented when a migration is appended.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 /// Maximum audit rows kept; the log records recent history only.
 const AUDIT_LIMIT: i64 = 5000;
@@ -28,13 +28,19 @@ pub struct Db {
     conn: Arc<Mutex<Connection>>,
 }
 
+/// One stored setting: a flattened config path and its JSON value.
+#[derive(Debug, Clone)]
+pub struct SettingRow {
+    pub key: String,
+    pub value: String,
+}
+
 impl Db {
     /// Opens (creating if needed) the database at `<data_path>/sailplane_persist.db`.
     pub fn open(path: &Path) -> Result<Self> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("failed to create data directory {}", parent.display())
-            })?;
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create data directory {}", parent.display()))?;
         }
 
         let conn = Connection::open(path)
@@ -138,6 +144,23 @@ impl Db {
             conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
 
+        if version < 3 {
+            // Sailplane's own settings replace the YAML file. One row per
+            // flattened leaf key (`server.port`), so the importer, the
+            // environment overrides and the UI all address the same path.
+            conn.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS settings (
+                    key        TEXT PRIMARY KEY,
+                    value      TEXT NOT NULL,
+                    secret     INTEGER NOT NULL DEFAULT 0,
+                    updated_at INTEGER NOT NULL
+                );
+                "#,
+            )?;
+            conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        }
+
         Ok(())
     }
 
@@ -158,6 +181,64 @@ impl Db {
         tokio::task::spawn_blocking(move || this.with(f))
             .await
             .context("database task panicked")?
+    }
+
+    // --- Settings ---
+
+    /// Every stored setting, as flattened key and JSON-encoded value.
+    pub fn load_settings(&self) -> Result<Vec<SettingRow>> {
+        self.with(|conn| {
+            let mut stmt = conn.prepare("SELECT key, value FROM settings ORDER BY key")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(SettingRow {
+                    key: row.get(0)?,
+                    value: row.get(1)?,
+                })
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .context("failed to load settings")
+        })
+    }
+
+    /// One stored setting's raw JSON value, when present.
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        self.with(|conn| {
+            conn.query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                params![key],
+                |row| row.get(0),
+            )
+            .optional()
+            .context("failed to read a setting")
+        })
+    }
+
+    /// Inserts or replaces one setting.
+    pub fn save_setting(&self, key: &str, value: &str, secret: bool) -> Result<()> {
+        self.with(|conn| {
+            conn.execute(
+                "INSERT INTO settings (key, value, secret, updated_at) VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT (key) DO UPDATE SET value = excluded.value, \
+                 secret = excluded.secret, updated_at = excluded.updated_at",
+                params![key, value, secret as i64, chrono::Utc::now().timestamp()],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Removes one setting.
+    pub fn delete_setting(&self, key: &str) -> Result<()> {
+        self.with(|conn| {
+            conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
+            Ok(())
+        })
+    }
+
+    pub fn count_settings(&self) -> Result<i64> {
+        self.with(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))
+                .context("failed to count settings")
+        })
     }
 
     // --- Users ---
@@ -399,7 +480,10 @@ impl Db {
         let now = Utc::now().timestamp_millis();
         self.with(|conn| {
             let removed = conn
-                .execute("DELETE FROM auth_sessions WHERE expires_at < ?1", params![now])
+                .execute(
+                    "DELETE FROM auth_sessions WHERE expires_at < ?1",
+                    params![now],
+                )
                 .context("failed to prune sessions")?;
             Ok(removed)
         })
@@ -517,7 +601,8 @@ mod tests {
     #[test]
     fn owner_is_never_granted_at_creation() {
         let db = Db::open_in_memory().unwrap();
-        db.create_user("sub-1", None, None, None, Role::Member).unwrap();
+        db.create_user("sub-1", None, None, None, Role::Member)
+            .unwrap();
         let second = db
             .create_user("sub-2", None, None, None, Role::Owner)
             .unwrap();
@@ -551,7 +636,9 @@ mod tests {
     #[test]
     fn expired_sessions_are_pruned() {
         let db = Db::open_in_memory().unwrap();
-        let user = db.create_user("sub", None, None, None, Role::Member).unwrap();
+        let user = db
+            .create_user("sub", None, None, None, Role::Member)
+            .unwrap();
         // Negative TTL: already expired.
         let session = db
             .create_oidc_session(&user.id, None, chrono::Duration::seconds(-10))
@@ -563,7 +650,9 @@ mod tests {
     #[test]
     fn deleting_a_user_cascades_to_sessions() {
         let db = Db::open_in_memory().unwrap();
-        let user = db.create_user("sub", None, None, None, Role::Member).unwrap();
+        let user = db
+            .create_user("sub", None, None, None, Role::Member)
+            .unwrap();
         let session = db
             .create_oidc_session(&user.id, None, chrono::Duration::seconds(3600))
             .unwrap();
@@ -575,9 +664,12 @@ mod tests {
     #[test]
     fn host_info_is_upserted_and_pruned() {
         let db = Db::open_in_memory().unwrap();
-        db.upsert_host_info("nodekey:1", r#"{"IPNVersion":"1.2.3"}"#).unwrap();
-        db.upsert_host_info("nodekey:2", r#"{"IPNVersion":"1.2.4"}"#).unwrap();
-        db.upsert_host_info("nodekey:1", r#"{"IPNVersion":"1.2.5"}"#).unwrap();
+        db.upsert_host_info("nodekey:1", r#"{"IPNVersion":"1.2.3"}"#)
+            .unwrap();
+        db.upsert_host_info("nodekey:2", r#"{"IPNVersion":"1.2.4"}"#)
+            .unwrap();
+        db.upsert_host_info("nodekey:1", r#"{"IPNVersion":"1.2.5"}"#)
+            .unwrap();
 
         let rows = db.list_host_info().unwrap();
         assert_eq!(rows.len(), 2);
@@ -601,8 +693,12 @@ mod tests {
     #[test]
     fn set_user_role_ignores_owner() {
         let db = Db::open_in_memory().unwrap();
-        let owner = db.create_user("sub-1", None, None, None, Role::Member).unwrap();
-        let other = db.create_user("sub-2", None, None, None, Role::Member).unwrap();
+        let owner = db
+            .create_user("sub-1", None, None, None, Role::Member)
+            .unwrap();
+        let other = db
+            .create_user("sub-2", None, None, None, Role::Member)
+            .unwrap();
 
         db.set_user_role(&other.id, Role::Owner).unwrap();
         assert_eq!(db.get_user(&other.id).unwrap().unwrap().role, Role::Member);
@@ -615,7 +711,11 @@ mod tests {
     fn api_key_sessions_store_only_a_hash() {
         let db = Db::open_in_memory().unwrap();
         let session = db
-            .create_api_key_session("my-secret-key", "abcd...", chrono::Duration::milliseconds(60_000))
+            .create_api_key_session(
+                "my-secret-key",
+                "abcd...",
+                chrono::Duration::milliseconds(60_000),
+            )
             .unwrap();
         assert_eq!(session.kind, SessionKind::ApiKey);
         assert_eq!(session.api_key_hash.as_deref().unwrap().len(), 64);

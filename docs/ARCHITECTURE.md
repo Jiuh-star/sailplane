@@ -28,7 +28,7 @@ Vue Flow and CodeMirror load only with the routes that use them.
 
 ```
 src/
-  config/         YAML and environment configuration, secret resolution
+  config/         settings store (defaults + database + environment), schema, import
   headscale/      API client, wire types, version capabilities, live snapshot store
   auth/           sessions, roles and capabilities, OIDC, proxy auth
   db/             SQLite schema and queries
@@ -53,6 +53,20 @@ src/
    15 seconds.
 4. State-changing requests must pass an origin check. The terminal WebSocket
    upgrade checks the origin too, because CORS never sees WebSocket handshakes.
+
+## Configuration and boot
+
+Sailplane's own settings are stored in SQLite and edited from the UI
+(`config/schema.rs` describes each field; `config/store.rs` builds the effective
+configuration from defaults, then the database, then environment overrides). The
+store holds a swappable snapshot, so a save takes effect per request; fields that
+cannot hot-apply (listener, TLS, base path, integrations) are marked
+**restart required** in the schema.
+
+Boot order: read the data directory (environment, else a legacy config file) so
+the database can be opened, import a legacy config file if the settings table is
+empty, generate the cookie secret and setup token if absent, build the snapshot,
+then wire the services and bind. A legacy YAML file is migration input only.
 
 ## Version capabilities
 

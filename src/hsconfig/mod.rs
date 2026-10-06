@@ -135,10 +135,12 @@ impl HeadscaleConfigFile {
             && let Some(raw_path) = configured_records_path
         {
             let path = PathBuf::from(raw_path);
-            records_path = Some(match (path.is_absolute(), config_path.and_then(Path::parent)) {
-                (false, Some(dir)) => dir.join(path),
-                _ => path,
-            });
+            records_path = Some(
+                match (path.is_absolute(), config_path.and_then(Path::parent)) {
+                    (false, Some(dir)) => dir.join(path),
+                    _ => path,
+                },
+            );
         }
 
         if let (Some(override_path), Some(config)) = (override_records_path, config_path) {
@@ -179,8 +181,7 @@ impl HeadscaleConfigFile {
         let Some(path) = self.inner.config_path.as_deref() else {
             bail!("no Headscale configuration file is configured");
         };
-        std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))
+        std::fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))
     }
 
     pub fn document(&self) -> Result<YamlEditor> {
@@ -219,7 +220,9 @@ impl HeadscaleConfigFile {
         extra_records.sort_by(|a, b| a.name.cmp(&b.name).then(a.record_type.cmp(&b.record_type)));
 
         Ok(DnsConfig {
-            magic_dns: editor.get_bool(&parse_path("dns.magic_dns")).unwrap_or(true),
+            magic_dns: editor
+                .get_bool(&parse_path("dns.magic_dns"))
+                .unwrap_or(true),
             base_domain: editor.get_str(&parse_path("dns.base_domain")),
             nameservers: editor.get_string_list(&parse_path("dns.nameservers.global")),
             split_dns,
@@ -323,7 +326,10 @@ impl HeadscaleConfigFile {
         }
 
         // No separate file: the records live inside the config document.
-        self.patch_locked(&[(parse_path("dns.extra_records"), Some(serde_json::to_value(&records)?))])
+        self.patch_locked(&[(
+            parse_path("dns.extra_records"),
+            Some(serde_json::to_value(&records)?),
+        )])
     }
 
     // --- OIDC restrictions ---
@@ -435,8 +441,8 @@ policy:
 
     #[test]
     fn missing_config_is_disabled() {
-        let file = HeadscaleConfigFile::load(Some(Path::new("/nonexistent/config.yaml")), None)
-            .unwrap();
+        let file =
+            HeadscaleConfigFile::load(Some(Path::new("/nonexistent/config.yaml")), None).unwrap();
         assert_eq!(file.access(), ConfigAccess::No);
         assert!(!file.readable());
     }
@@ -481,7 +487,10 @@ policy:
         assert_eq!(file.access(), ConfigAccess::ReadOnly);
 
         let err = file
-            .patch(&[(parse_path("dns.base_domain"), Some(Value::String("x".into())))])
+            .patch(&[(
+                parse_path("dns.base_domain"),
+                Some(Value::String("x".into())),
+            )])
             .await
             .unwrap_err();
         assert!(err.to_string().contains("not writable"));
@@ -527,9 +536,7 @@ policy:
 
     #[tokio::test]
     async fn records_in_separate_json_file() {
-        let (dir, path) = temp_config(
-            "dns:\n  extra_records_path: /tmp/records.json\n",
-        );
+        let (dir, path) = temp_config("dns:\n  extra_records_path: /tmp/records.json\n");
         let records_path = dir.path().join("records.json");
         std::fs::write(&records_path, "[]").unwrap();
 
@@ -546,7 +553,11 @@ policy:
         let raw = std::fs::read_to_string(&records_path).unwrap();
         assert!(raw.contains("a.example.com"));
         // The config file itself is untouched.
-        assert!(!std::fs::read_to_string(&path).unwrap().contains("a.example.com"));
+        assert!(
+            !std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("a.example.com")
+        );
     }
 
     #[tokio::test]
@@ -619,7 +630,8 @@ policy:
     /// This pins the shape the guard looks for.
     #[test]
     fn detects_an_empty_global_nameserver_list() {
-        let (_dir, path) = temp_config("dns:\n  override_local_dns: true\n  nameservers:\n    global: []\n");
+        let (_dir, path) =
+            temp_config("dns:\n  override_local_dns: true\n  nameservers:\n    global: []\n");
         let file = HeadscaleConfigFile::load(Some(&path), None).unwrap();
         let dns = file.dns_config().unwrap();
         assert!(dns.nameservers.is_empty());

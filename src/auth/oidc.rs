@@ -178,8 +178,7 @@ impl OidcProvider {
 
         let metadata = ProviderMetadata {
             issuer: string("issuer"),
-            authorization_endpoint: string("authorization_endpoint")
-                .unwrap_or_default(),
+            authorization_endpoint: string("authorization_endpoint").unwrap_or_default(),
             token_endpoint: string("token_endpoint").unwrap_or_default(),
             jwks_uri: string("jwks_uri").unwrap_or_default(),
             userinfo_endpoint: string("userinfo_endpoint"),
@@ -202,15 +201,15 @@ impl OidcProvider {
 
     /// Builds the authorization redirect URL and the transaction to stash in a cookie.
     pub async fn begin_flow(&self, redirect_uri: &str) -> Result<(String, OidcTransaction)> {
-        let metadata = self.discover().await.map_err(|e| anyhow::anyhow!(e.message()))?;
+        let metadata = self
+            .discover()
+            .await
+            .map_err(|e| anyhow::anyhow!(e.message()))?;
 
         let state = crate::util::random_token(32);
         let nonce = crate::util::random_token(32);
 
-        let verifier = self
-            .config
-            .use_pkce
-            .then(|| crate::util::random_token(64));
+        let verifier = self.config.use_pkce.then(|| crate::util::random_token(64));
 
         let mut url = url::Url::parse(&metadata.authorization_endpoint)
             .map_err(|err| anyhow::anyhow!("invalid authorization endpoint: {err}"))?;
@@ -265,7 +264,9 @@ impl OidcProvider {
             .exchange_code(&metadata, code, transaction, &client_secret)
             .await?;
 
-        let claims = self.verify_id_token(&metadata, &id_token, &transaction.nonce).await?;
+        let claims = self
+            .verify_id_token(&metadata, &id_token, &transaction.nonce)
+            .await?;
 
         // The userinfo response fills in anything the ID token omitted.
         let userinfo = match access_token.as_deref() {
@@ -544,7 +545,11 @@ impl OidcProvider {
         Ok(data.claims)
     }
 
-    async fn fetch_userinfo(&self, metadata: &ProviderMetadata, access_token: &str) -> Option<Value> {
+    async fn fetch_userinfo(
+        &self,
+        metadata: &ProviderMetadata,
+        access_token: &str,
+    ) -> Option<Value> {
         let endpoint = self
             .config
             .userinfo_endpoint
@@ -634,14 +639,11 @@ fn pick_auto_method(
     configured: Option<TokenEndpointAuthMethod>,
 ) -> TokenEndpointAuthMethod {
     if let Some(method) = configured
-        && method != TokenEndpointAuthMethod::Auto {
-            return method;
-        }
-    if supported
-        .iter()
-        .any(|m| m == "client_secret_basic")
-        || supported.is_empty()
+        && method != TokenEndpointAuthMethod::Auto
     {
+        return method;
+    }
+    if supported.iter().any(|m| m == "client_secret_basic") || supported.is_empty() {
         TokenEndpointAuthMethod::ClientSecretBasic
     } else if supported.iter().any(|m| m == "client_secret_post") {
         TokenEndpointAuthMethod::ClientSecretPost
@@ -673,7 +675,10 @@ jwks_endpoint: https://idp.example/jwks
     async fn manual_endpoints_skip_discovery() {
         let provider = provider();
         let metadata = provider.discover().await.unwrap();
-        assert_eq!(metadata.authorization_endpoint, "https://idp.example/authorize");
+        assert_eq!(
+            metadata.authorization_endpoint,
+            "https://idp.example/authorize"
+        );
         assert_eq!(metadata.jwks_uri, "https://idp.example/jwks");
     }
 
@@ -696,7 +701,10 @@ jwks_endpoint: https://idp.example/jwks
             query.get("redirect_uri").unwrap(),
             "https://app.example/admin/oidc/callback"
         );
-        assert!(!query.contains_key("code_challenge"), "PKCE is off by default");
+        assert!(
+            !query.contains_key("code_challenge"),
+            "PKCE is off by default"
+        );
     }
 
     #[tokio::test]
@@ -716,7 +724,10 @@ jwks_endpoint: https://idp.example/jwks
 
     #[test]
     fn role_claim_accepts_strings_and_arrays() {
-        assert_eq!(resolve_role(&Value::String("admin".into())), Some(super::super::Role::Admin));
+        assert_eq!(
+            resolve_role(&Value::String("admin".into())),
+            Some(super::super::Role::Admin)
+        );
         assert_eq!(
             resolve_role(&serde_json::json!(["member", "viewer"])),
             Some(super::super::Role::Viewer)
@@ -737,7 +748,10 @@ jwks_endpoint: https://idp.example/jwks
             TokenEndpointAuthMethod::ClientSecretPost
         );
         assert_eq!(
-            pick_auto_method(&["client_secret_basic".into(), "client_secret_post".into()], None),
+            pick_auto_method(
+                &["client_secret_basic".into(), "client_secret_post".into()],
+                None
+            ),
             TokenEndpointAuthMethod::ClientSecretBasic
         );
     }

@@ -1,10 +1,66 @@
 # Configuration
 
-Sailplane reads one YAML file. The default path is `/etc/sailplane/config.yaml`.
-You can change the path with the `--config` flag or the `SAILPLANE_CONFIG_PATH`
-environment variable.
+Settings live in Sailplane's SQLite database and are edited from the **Deployment**
+page in the UI. A YAML config file is still read for one-time migration, then
+deprecated; see [Migrating a config file](#migrating-a-config-file).
 
-The loader rejects unknown keys. A typo in a key name stops startup with an error.
+The effective configuration is built in this order, later layers winning:
+
+1. Built-in defaults.
+2. Values stored in the database (the UI writes these).
+3. `SAILPLANE_<SECTION>__<KEY>` environment overrides.
+
+Only the data directory must be known before the database is opened, so it comes
+from `SAILPLANE_DATA_PATH` (default `/var/lib/sailplane/`) or a legacy config
+file's `server.data_path`.
+
+## First-run onboarding
+
+On a fresh deployment with no account, no single sign-on, and no Headscale API
+key yet, the UI shows a setup wizard. It asks for the Headscale URL and API key,
+then optionally the public URL, and creates the first account when you sign in.
+Importing a config file (or setting the key in the environment) marks the
+deployment as configured, so an upgrade never re-asks for values it already has.
+The wizard is reachable without authentication, so it is guarded by one of:
+
+- A loopback peer (open it from the host itself).
+- A one-time setup token. The token is printed to the log at first start
+  (`first-run setup token: …`) and written to `setup-token` under the data
+  directory (mode `0600`, removed once onboarding completes). Send it in the
+  `x-setup-token` header. Override it with `SAILPLANE_SETUP_TOKEN`. Repeated
+  wrong tokens are refused until Sailplane restarts.
+
+After onboarding, the same values are edited on the Deployment page. A change to
+a field marked **restart required** takes effect on the next start.
+
+## Settings API
+
+Owner accounts can read and change settings over the API.
+
+| Method | Path | Body |
+| --- | --- | --- |
+| GET | `/api/settings` | — |
+| PUT | `/api/settings` | `{ "values": { "key": value } }`, `null` deletes |
+| POST | `/api/settings/validate` | `{ "values": { … } }` |
+| POST | `/api/settings/import` | `{ "yaml": "<YAML text>" }` |
+
+Secret values are never returned; the response reports whether one is set.
+
+## Migrating a config file
+
+An existing YAML config file at `--config` / `SAILPLANE_CONFIG_PATH` (default
+`/etc/sailplane/config.yaml`) is imported into the database on the first start
+after an upgrade, then ignored. Sailplane logs a warning and continues. To import
+explicitly, run `sailplane --import-config <path>`.
+
+The keys below are the ones the file may contain. A typo in a key name stops the
+import with an error; the loader rejects unknown keys.
+
+---
+
+The rest of this document describes the configuration schema. Every key is
+stored in the database and edited from the UI; `*_path` keys still read a secret
+from a file, which suits container secret mounts.
 
 ## Minimal example
 

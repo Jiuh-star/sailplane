@@ -101,7 +101,9 @@ fn upstream_message(err: &HeadscaleError) -> String {
     }
 
     match err {
-        HeadscaleError::Api { status, data, raw, .. } => {
+        HeadscaleError::Api {
+            status, data, raw, ..
+        } => {
             // Headscale returns `{"message": "..."}` for most failures.
             if let Some(message) = data
                 .as_ref()

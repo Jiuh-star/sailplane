@@ -33,11 +33,15 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
+  headers?: Record<string, string>,
 ): Promise<T> {
   const response = await fetch(resolve(path), {
     method,
     credentials: 'same-origin',
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers: {
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...headers,
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 
@@ -68,7 +72,8 @@ async function request<T>(
 }
 
 const get = <T>(path: string) => request<T>('GET', path)
-const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {})
+const post = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+  request<T>('POST', path, body ?? {}, headers)
 const put = <T>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {})
 const del = <T>(path: string) => request<T>('DELETE', path)
 
@@ -117,6 +122,10 @@ export interface ConfigView {
   agentBackend: string
   debug: boolean
   version: string
+  /** Absent on older servers; treat as supported when missing. */
+  grantsSupported?: boolean
+  /** True until first-run onboarding completes. */
+  setupRequired: boolean
 }
 
 export interface HeadscaleVersionView {
@@ -175,6 +184,8 @@ export interface Machine {
   ipv6: string | null
   expired: boolean
   expiry_disabled: boolean
+  exit_node: boolean
+  exit_approved: boolean
   status_tags: StatusTag[]
   host_info: Record<string, unknown> | null
   version: string | null
@@ -290,6 +301,9 @@ export interface AclRule {
   src: string[]
   dst: string[]
   proto?: string
+  srcPosture?: string[]
+  /** Unknown per-rule keys (for example `acceptEnv`) round-trip here. */
+  [key: string]: unknown
 }
 
 export interface SshRule {
@@ -298,6 +312,35 @@ export interface SshRule {
   dst: string[]
   users: string[]
   checkPeriod?: string
+  srcPosture?: string[]
+  /** Unknown per-rule keys round-trip here. */
+  [key: string]: unknown
+}
+
+/** A `grants` rule, the newer access syntax. */
+export interface GrantRule {
+  src: string[]
+  dst: string[]
+  ip?: string[]
+  via?: string[]
+  app?: unknown[]
+  srcPosture?: string[]
+  /** Unknown per-rule keys round-trip here. */
+  [key: string]: unknown
+}
+
+/** Automatic route and exit-node approval by selector. */
+export interface AutoApprovers {
+  routes?: Record<string, string[]>
+  exitNode?: string[]
+  [key: string]: unknown
+}
+
+/** A `nodeAttrs` entry: attributes applied to the nodes a selector names. */
+export interface NodeAttr {
+  target: string[]
+  attr: string[]
+  [key: string]: unknown
 }
 
 export interface ParsedPolicy {
@@ -306,7 +349,16 @@ export interface ParsedPolicy {
   hosts: Record<string, string>
   groups: Record<string, string[]>
   tagOwners: Record<string, string[]>
-  extra: Record<string, unknown>
+  /** May be a raw non-array value in a malformed policy; guard before use. */
+  grants?: GrantRule[]
+  autoApprovers?: AutoApprovers
+  nodeAttrs?: NodeAttr[]
+  postures?: Record<string, string[]>
+  tests?: unknown[]
+  sshTests?: unknown[]
+  randomizeClientPort?: boolean
+  /** Unknown top-level keys are flattened here, so saving never drops them. */
+  [key: string]: unknown
 }
 
 /** Everything a policy selector may name, for the access check's suggestions. */
@@ -316,6 +368,11 @@ export interface AclSelectors {
   hosts: string[]
   tags: string[]
   machines: string[]
+  /** Dynamic selectors, offered as text: who they name depends on the caller. */
+  autogroups: {
+    source: string[]
+    destination: string[]
+  }
 }
 
 export interface AclResponse {
@@ -342,9 +399,12 @@ export interface AclMachineRef {
 
 export interface AclRuleOutcome {
   index: number
+  kind: 'acl' | 'grant' | 'ssh'
   action: string
   src: string[]
   dst: string[]
+  /** Present on grant rules only: the protocols and ports they allow. */
+  ip?: string[]
   matched_src: string | null
   matched_dst: string | null
   matched: boolean
@@ -360,6 +420,7 @@ export interface AccessReport {
   destination_machines: AclMachineRef[]
   decision: {
     index: number
+    kind: 'acl' | 'grant'
     action: string
     src: string[]
     dst: string[]
@@ -392,7 +453,7 @@ export interface TopologyIdentity {
 /** One rule, seen as an edge between two identities. */
 export interface TopologyEdge {
   rule: number
-  kind: 'acl' | 'ssh'
+  kind: 'acl' | 'grant' | 'ssh'
   action: string
   src: string
   dst: string
@@ -416,11 +477,22 @@ export interface TopologyRelay {
   machines: { id: string; name: string; online: boolean }[]
 }
 
+/** Policy keys that do not form edges. Each value may be absent or null. */
+export interface TopologyPolicy {
+  autoApprovers?: AutoApprovers | null
+  nodeAttrs?: NodeAttr[] | null
+  postures?: Record<string, string[]> | null
+  tests?: unknown[] | null
+  sshTests?: unknown[] | null
+  randomizeClientPort?: boolean | null
+}
+
 export interface TopologyResponse {
   identities: TopologyIdentity[]
   edges: TopologyEdge[]
   routes: TopologyRoute[]
   relays: TopologyRelay[]
+  policy: TopologyPolicy
   totals: { machines: number; online: number; rules: number }
 }
 
@@ -486,6 +558,39 @@ export interface RestrictionsResponse {
   access: { read: boolean; write: boolean; writable: boolean }
 }
 
+/** How a setting value is edited. */
+export type SettingKind = 'text' | 'number' | 'bool' | 'path' | 'list' | 'url'
+
+/** Where the effective value comes from. */
+export type SettingSource = 'default' | 'database' | 'environment' | null
+
+/** One editable key in Sailplane's own configuration. */
+export interface SettingsEntry {
+  /** Dotted key, for example `headscale.url`. */
+  key: string
+  /** Section the key belongs to: `server`, `headscale`, `oidc`, and so on. */
+  group: string
+  kind: SettingKind
+  secret: boolean
+  restartRequired: boolean
+  /** Effective value. Always null for secrets, which are never returned. */
+  value: unknown
+  /** True when a value is stored. For secrets, the value itself stays hidden. */
+  set: boolean
+  source: SettingSource
+}
+
+export interface SettingsResponse {
+  settings: SettingsEntry[]
+}
+
+/** First-run onboarding state. `GET /api/setup/status` needs no session. */
+export interface SetupStatus {
+  required: boolean
+  headscaleUrl: string
+  hasApiKey: boolean
+}
+
 // --- Endpoints ---
 
 export const api = {
@@ -531,7 +636,10 @@ export const api = {
 
   acl: {
     get: () => get<AclResponse>('api/acl'),
-    set: (policy: string) => put<{ ok: boolean; policy: string; updatedAt: string }>('api/acl', { policy }),
+    set: (policy: string) =>
+      put<{ ok: boolean; policy: string; updatedAt: string; warnings: string[] }>('api/acl', {
+        policy,
+      }),
     simulate: (query: AccessQuery) =>
       post<{ reports: AccessReport[]; policy: 'saved' | 'draft' }>('api/acl/simulate', query),
   },
@@ -620,6 +728,36 @@ export const api = {
   agent: {
     status: () => get<{ agent: AgentStatus }>('api/agent'),
     sync: () => post<{ ok: boolean; error?: string; nodeCount?: number; agent: AgentStatus }>('api/agent/sync'),
+  },
+
+  settings: {
+    get: () => get<SettingsResponse>('api/settings'),
+    /** A null value deletes the setting. */
+    update: (values: Record<string, unknown>) =>
+      put<{ ok: boolean; restartRequired: string[] }>('api/settings', { values }),
+    validate: (values: Record<string, unknown>) =>
+      post<{ valid: boolean; error?: string }>('api/settings/validate', { values }),
+    import: (yaml: string) => post<{ ok: boolean }>('api/settings/import', { yaml }),
+  },
+
+  setup: {
+    status: () => get<SetupStatus>('api/setup/status'),
+    /** The setup token goes in `x-setup-token`; loopback callers may omit it. */
+    testHeadscale: (url: string, apiKey: string, token?: string) =>
+      post<{ ok: boolean; version: string | null }>(
+        'api/setup/test-headscale',
+        { url, api_key: apiKey },
+        token ? { 'x-setup-token': token } : undefined,
+      ),
+    complete: (
+      payload: { url: string; api_key: string; base_url?: string; cookie_secure?: boolean },
+      token?: string,
+    ) =>
+      post<{ ok: boolean }>(
+        'api/setup/complete',
+        payload,
+        token ? { 'x-setup-token': token } : undefined,
+      ),
   },
 }
 

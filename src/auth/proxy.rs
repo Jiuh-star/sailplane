@@ -69,16 +69,25 @@ impl Cidr {
             (IpAddr::V4(_), IpAddr::V6(candidate)) => candidate
                 .to_ipv4_mapped()
                 .is_some_and(|v4| self.contains(IpAddr::V4(v4))),
-            (IpAddr::V6(network), IpAddr::V4(candidate)) => network
-                .to_ipv4_mapped()
-                .is_some_and(|v4| Cidr { addr: IpAddr::V4(v4), prefix: self.prefix.saturating_sub(96) }.contains(IpAddr::V4(candidate))),
+            (IpAddr::V6(network), IpAddr::V4(candidate)) => {
+                network.to_ipv4_mapped().is_some_and(|v4| {
+                    Cidr {
+                        addr: IpAddr::V4(v4),
+                        prefix: self.prefix.saturating_sub(96),
+                    }
+                    .contains(IpAddr::V4(candidate))
+                })
+            }
         }
     }
 }
 
 /// Parses a list of CIDR strings, ignoring unparseable entries.
 pub fn parse_cidrs(inputs: &[String]) -> Vec<Cidr> {
-    inputs.iter().filter_map(|entry| Cidr::parse(entry)).collect()
+    inputs
+        .iter()
+        .filter_map(|entry| Cidr::parse(entry))
+        .collect()
 }
 
 fn in_any(cidrs: &[Cidr], addr: IpAddr) -> bool {
@@ -114,9 +123,10 @@ pub fn resolve(
         if in_any(&trusted, direct_peer) {
             if let Some(raw) = get_header(header_name)
                 && let Some(first) = raw.split(',').next()
-                    && let Ok(parsed) = first.trim().parse::<IpAddr>() {
-                        effective_peer = parsed;
-                    }
+                && let Ok(parsed) = first.trim().parse::<IpAddr>()
+            {
+                effective_peer = parsed;
+            }
         } else {
             // Untrusted peer tried to supply a forwarding header: refuse.
             tracing::warn!(

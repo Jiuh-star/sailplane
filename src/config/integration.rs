@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-
 /// Browser SSH settings.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -36,7 +35,6 @@ pub struct SshConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -182,9 +180,11 @@ impl IntegrationConfig {
         }
 
         if let Some(docker) = self.docker.as_ref()
-            && !docker.socket.starts_with("unix://") && !docker.socket.starts_with("tcp://") {
-                bail!("integration.docker.socket must start with unix:// or tcp://");
-            }
+            && !docker.socket.starts_with("unix://")
+            && !docker.socket.starts_with("tcp://")
+        {
+            bail!("integration.docker.socket must start with unix:// or tcp://");
+        }
 
         Ok(())
     }

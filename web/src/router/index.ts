@@ -15,6 +15,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { public: true, bare: true },
   },
   {
+    path: '/setup',
+    name: 'setup',
+    component: () => import('@/views/SetupView.vue'),
+    meta: { public: true, bare: true },
+  },
+  {
     path: '/',
     component: () => import('@/layout/AppShell.vue'),
     children: [
@@ -71,6 +77,12 @@ export const routes: RouteRecordRaw[] = [
         name: 'settings',
         component: () => import('@/views/SettingsView.vue'),
         meta: { title: 'Settings', requires: 'feature' },
+      },
+      {
+        path: 'settings/deployment',
+        name: 'deployment',
+        component: () => import('@/views/SailplaneSettingsView.vue'),
+        meta: { title: 'Deployment', requires: 'owner' },
       },
       {
         path: 'settings/auth-keys',
@@ -152,6 +164,12 @@ router.beforeEach(async (to) => {
   }
 
   const isPublic = to.meta.public === true
+
+  // Onboarding comes first. Public pages stay reachable, so the login page and
+  // the wizard itself still load.
+  if (session.setupRequired.value && !isPublic && to.name !== 'setup') {
+    return { name: 'setup' }
+  }
 
   if (!session.authenticated.value && !isPublic) {
     return { name: 'login', query: { returnTo: to.fullPath } }

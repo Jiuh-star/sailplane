@@ -19,6 +19,8 @@ export default {
   tabs: {
     rules: '规则',
     tags: '标签与分组',
+    grants: 'Grants 规则',
+    advanced: '高级',
     file: '编辑文件',
     diff: '预览更改',
     check: '连通性测试',
@@ -93,6 +95,51 @@ export default {
     unassigned: '未分配给任何设备',
     noOwners: '无所有者',
   },
+  grants: {
+    title: 'Grants 规则',
+    add: '添加 Grants 规则',
+    empty: '暂无 Grants 规则',
+    rawTitle: 'Grants 使用了不支持的格式',
+    rawBody: '该策略可以解析，但 grants 不是常见的列表。请在“编辑文件”标签页中修改。',
+  },
+  advanced: {
+    invalidJson: '这不是有效的 JSON。',
+    mustBeArray: '这里必须是一个 JSON 数组。',
+    autoApprovers: {
+      title: '自动批准',
+      description: '无需手动操作即可批准的路由和出口节点。',
+      routes: '路由',
+      addRoute: '添加路由',
+      noRoutes: '没有自动批准的路由',
+      exitNodes: '出口节点',
+      noExitNodes: '没有自动批准的出口节点',
+    },
+    nodeAttrs: {
+      title: '节点属性',
+      add: '添加属性',
+      empty: '尚未设置节点属性',
+    },
+    postures: {
+      title: '设备状态（Postures）',
+      add: '添加状态',
+      empty: '尚未定义状态',
+    },
+    tests: {
+      title: '策略测试',
+      hint: '一个 JSON 数组，包含测试用例。编辑器为空时省略该部分。',
+    },
+    sshTests: {
+      title: 'SSH 策略测试',
+      hint: '一个 JSON 数组，包含 SSH 测试用例。编辑器为空时省略该部分。',
+    },
+    randomize: {
+      title: '随机化客户端端口',
+      description: '出站连接使用随机源端口。',
+    },
+  },
+  warnings: {
+    title: '策略已保存，但存在警告',
+  },
   file: {
     hint: '支持 HuJSON，包括 {comment} 注释和尾随逗号。从此标签页保存时将按原样提交文本。',
   },
@@ -105,6 +152,13 @@ export default {
     sources: '源',
     destinations: '目标',
     protocol: '协议',
+    srcPosture: '源设备状态',
+    ip: 'IP 与端口',
+    cidr: 'CIDR',
+    selectors: '选择器',
+    targets: '目标选择器',
+    attributes: '属性',
+    conditions: '条件',
     action: '动作',
     sshUsers: 'SSH 用户',
     checkPeriod: '检查周期',
@@ -138,5 +192,30 @@ export default {
     editTagTitle: '编辑标签',
     groupDescription: '成员以 username{\'@\'} 的形式填写，末尾的 {\'@\'} 不能省略。',
     tagDescription: '所有者可以填写 group: 引用或 username{\'@\'} 条目。',
+  },
+  grantDialog: {
+    newTitle: '新建 Grants 规则',
+    editTitle: '编辑 Grants 规则',
+    description: 'Grants 是较新的访问语法。端口写作 tcp:443 或 udp:53。',
+    save: '保存',
+  },
+  approverRouteDialog: {
+    newTitle: '新建自动批准路由',
+    editTitle: '编辑自动批准路由',
+    description: '一个 CIDR，以及可以通告该网段的选择器。',
+  },
+  exitNodesDialog: {
+    title: '自动批准的出口节点',
+    description: '可以作为出口节点的选择器。多个条目用逗号分隔。',
+  },
+  nodeAttrDialog: {
+    newTitle: '新建节点属性',
+    editTitle: '编辑节点属性',
+    description: '选择器，以及应用到其匹配设备上的属性。',
+  },
+  postureDialog: {
+    newTitle: '新建设备状态',
+    editTitle: '编辑设备状态',
+    description: '一个名称，以及源必须满足的条件。',
   },
 }

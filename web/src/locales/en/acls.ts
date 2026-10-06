@@ -19,6 +19,8 @@ export default {
   tabs: {
     rules: 'Rules',
     tags: 'Tags & groups',
+    grants: 'Grants',
+    advanced: 'Advanced',
     file: 'Edit file',
     diff: 'Preview changes',
     check: 'Check access',
@@ -93,6 +95,51 @@ export default {
     unassigned: 'Not assigned to any machine',
     noOwners: 'No owners',
   },
+  grants: {
+    title: 'Grant rules',
+    add: 'Add grant',
+    empty: 'No grant rules yet',
+    rawTitle: 'Grants use an unsupported shape',
+    rawBody: 'This policy parses but its grants are not the usual list. Edit it in the “Edit file” tab.',
+  },
+  advanced: {
+    invalidJson: 'This is not valid JSON.',
+    mustBeArray: 'This must be a JSON array.',
+    autoApprovers: {
+      title: 'Auto-approvers',
+      description: 'Routes and exit nodes that are approved without a manual step.',
+      routes: 'Routes',
+      addRoute: 'Add route',
+      noRoutes: 'No routes auto-approved',
+      exitNodes: 'Exit nodes',
+      noExitNodes: 'No exit nodes auto-approved',
+    },
+    nodeAttrs: {
+      title: 'Node attributes',
+      add: 'Add attribute',
+      empty: 'No node attributes set',
+    },
+    postures: {
+      title: 'Postures',
+      add: 'Add posture',
+      empty: 'No postures defined',
+    },
+    tests: {
+      title: 'Policy tests',
+      hint: 'A JSON array of test cases. An empty editor omits the section.',
+    },
+    sshTests: {
+      title: 'SSH policy tests',
+      hint: 'A JSON array of SSH test cases. An empty editor omits the section.',
+    },
+    randomize: {
+      title: 'Randomize client port',
+      description: 'Use a random source port for outbound connections.',
+    },
+  },
+  warnings: {
+    title: 'The policy saved with warnings',
+  },
   file: {
     hint: 'HuJSON is accepted, including {comment} comments and trailing commas. Saving from this tab sends the text verbatim.',
   },
@@ -105,6 +152,13 @@ export default {
     sources: 'Sources',
     destinations: 'Destinations',
     protocol: 'Protocol',
+    srcPosture: 'Source postures',
+    ip: 'IP and ports',
+    cidr: 'CIDR',
+    selectors: 'Selectors',
+    targets: 'Targets',
+    attributes: 'Attributes',
+    conditions: 'Conditions',
     action: 'Action',
     sshUsers: 'SSH users',
     checkPeriod: 'Check period',
@@ -138,5 +192,30 @@ export default {
     editTagTitle: 'Edit tag',
     groupDescription: 'Members are written as username{\'@\'}. The trailing {\'@\'} is required.',
     tagDescription: 'Owners accept group: references or username{\'@\'} entries.',
+  },
+  grantDialog: {
+    newTitle: 'New grant rule',
+    editTitle: 'Edit grant rule',
+    description: 'Grants are the newer access syntax. Ports are written as tcp:443 or udp:53.',
+    save: 'Save grant',
+  },
+  approverRouteDialog: {
+    newTitle: 'New auto-approved route',
+    editTitle: 'Edit auto-approved route',
+    description: 'A CIDR and the selectors whose machines may advertise it.',
+  },
+  exitNodesDialog: {
+    title: 'Auto-approved exit nodes',
+    description: 'Selectors whose machines may act as exit nodes. Separate entries with commas.',
+  },
+  nodeAttrDialog: {
+    newTitle: 'New node attribute',
+    editTitle: 'Edit node attribute',
+    description: 'The selectors and the attributes applied to the machines they name.',
+  },
+  postureDialog: {
+    newTitle: 'New posture',
+    editTitle: 'Edit posture',
+    description: 'A name and the conditions that a source must satisfy.',
   },
 }

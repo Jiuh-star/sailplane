@@ -161,8 +161,12 @@ impl OidcConfig {
     }
     /// Returns the post-logout redirect, defaulting to `<base_url><prefix>/login?s=logout`.
     pub fn post_logout_redirect(&self, base_url: &str, base_path: &str) -> String {
-        self.post_logout_redirect_uri
-            .clone()
-            .unwrap_or_else(|| format!("{}{}/login?s=logout", base_url.trim_end_matches('/'), base_path))
+        self.post_logout_redirect_uri.clone().unwrap_or_else(|| {
+            format!(
+                "{}{}/login?s=logout",
+                base_url.trim_end_matches('/'),
+                base_path
+            )
+        })
     }
 }

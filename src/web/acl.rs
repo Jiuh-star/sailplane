@@ -20,7 +20,9 @@ use super::state::{Auth, PrincipalExt, SharedState};
 /// (a 500 with "acl policy not found") and another in database mode (an empty
 /// policy). Both mean "nothing configured yet". `writable` is false when
 /// Headscale reads the policy from a file, so edits would be discarded.
-pub(super) async fn stored_policy(client: &ApiClient) -> Result<(String, Option<String>, bool), ApiError> {
+pub(super) async fn stored_policy(
+    client: &ApiClient,
+) -> Result<(String, Option<String>, bool), ApiError> {
     match client.get_policy().await {
         Ok(policy) => {
             let writable = policy.updated_at.is_some();
@@ -104,6 +106,12 @@ fn selectors(nodes: &[crate::headscale::Machine], policy: Option<&AclPolicy>) ->
             .flat_map(crate::headscale::Machine::effective_tags)
             .collect::<std::collections::BTreeSet<_>>(),
         "machines": machines,
+        // Dynamic selectors. Which machines they name depends on who is
+        // asking, which the editor cannot know; they are offered as text.
+        "autogroups": {
+            "source": ["autogroup:member", "autogroup:admin"],
+            "destination": ["autogroup:internet", "autogroup:self"],
+        },
     })
 }
 
@@ -158,15 +166,11 @@ pub async fn simulate(
         }
     };
 
-    let policy = AclPolicy::parse(&text)
-        .map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
+    let policy =
+        AclPolicy::parse(&text).map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
 
     let nodes = state.live.nodes().await;
-    let machines: Vec<MachineRef> = nodes
-        .data
-        .iter()
-        .map(MachineRef::from_machine)
-        .collect();
+    let machines: Vec<MachineRef> = nodes.data.iter().map(MachineRef::from_machine).collect();
 
     let dsts: Vec<String> = request
         .dsts
@@ -180,10 +184,11 @@ pub async fn simulate(
         return Err(ApiError::bad_request("Enter a destination to check"));
     }
 
+    let ctx = state.eval_context().await;
     let reports: Vec<eval::Report> = dsts
         .into_iter()
         .map(|dst| {
-            eval::evaluate(
+            eval::evaluate_with(
                 &policy,
                 &machines,
                 &eval::Query {
@@ -192,6 +197,7 @@ pub async fn simulate(
                     port: request.port,
                     protocol: request.protocol.clone(),
                 },
+                &ctx,
             )
         })
         .collect();
@@ -202,23 +208,91 @@ pub async fn simulate(
 /// Renders the structured policy for the editor.
 ///
 /// The editor round-trips this value straight back into the policy text, so it
-/// has to match what `to_text` writes: field order is preserved (`preserve_order`
-/// in Cargo.toml) and unknown top-level keys (`autoApprovers`, `nodeAttrs`, …)
-/// are spread in place rather than nested under a wrapper that Headscale would
-/// reject.
+/// must match what `to_text` writes. Serialising the model directly keeps the
+/// two in step: field order comes from the struct (`preserve_order` in
+/// Cargo.toml keeps the maps ordered) and unknown keys stay where they belong.
 fn parsed_policy(policy: &AclPolicy) -> Value {
-    let mut map = serde_json::Map::new();
-    map.insert("acls".into(), json!(policy.acls));
-    map.insert("ssh".into(), json!(policy.ssh));
-    map.insert("hosts".into(), json!(policy.hosts));
-    map.insert("groups".into(), json!(policy.groups));
-    map.insert("tagOwners".into(), json!(policy.tag_owners));
+    serde_json::to_value(policy).expect("the policy model is serialisable")
+}
 
-    for (key, value) in &policy.extra {
-        map.insert(key.clone(), value.clone());
+/// Warnings the editor shows without blocking a save.
+///
+/// A posture reference that names nothing is a likely mistake, but Headscale
+/// may still accept it; the user decides.
+fn policy_warnings(policy: &AclPolicy) -> Vec<String> {
+    let mut warnings = Vec::new();
+
+    if !policy.acls.is_empty() && !policy.grant_rules().is_empty() {
+        warnings.push(
+            "`acls` and `grants` are both present; prefer one access syntax to avoid ambiguity"
+                .into(),
+        );
     }
 
-    Value::Object(map)
+    let postures = policy.posture_names();
+    let check = |warnings: &mut Vec<String>, label: &str, index: usize, refs: &[String]| {
+        for name in refs {
+            if !postures.iter().any(|declared| declared == name) {
+                warnings.push(format!(
+                    "{label} rule {} references posture `{name}`, which `postures` does not declare",
+                    index + 1
+                ));
+            }
+        }
+    };
+    for (index, rule) in policy.acls.iter().enumerate() {
+        check(&mut warnings, "ACL", index, &rule.src_posture);
+    }
+    for (index, rule) in policy.grant_rules().iter().enumerate() {
+        check(&mut warnings, "Grant", index, &rule.src_posture);
+    }
+
+    warnings
+}
+
+/// Rejects rules that cannot mean anything, so a save fails before it reaches
+/// Headscale. Only structural mistakes are refused; semantic questions stay
+/// warnings.
+fn validate_rules(policy: &AclPolicy) -> Result<(), String> {
+    check_rules(
+        "ACL",
+        policy
+            .acls
+            .iter()
+            .map(|rule| (rule.src.as_slice(), rule.dst.as_slice())),
+    )?;
+    check_rules(
+        "SSH",
+        policy
+            .ssh
+            .iter()
+            .map(|rule| (rule.src.as_slice(), rule.dst.as_slice())),
+    )?;
+    check_rules(
+        "Grant",
+        policy
+            .grant_rules()
+            .iter()
+            .map(|rule| (rule.src.as_slice(), rule.dst.as_slice())),
+    )
+}
+
+/// Every rule needs at least one non-blank source and destination.
+fn check_rules<'a>(
+    label: &str,
+    rules: impl Iterator<Item = (&'a [String], &'a [String])>,
+) -> Result<(), String> {
+    for (index, (src, dst)) in rules.enumerate() {
+        if src.iter().all(|entry| entry.trim().is_empty())
+            || dst.iter().all(|entry| entry.trim().is_empty())
+        {
+            return Err(format!(
+                "{label} rule {} needs a source and a destination",
+                index + 1
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Validates and stores the ACL policy. `PUT /api/acl`
@@ -230,8 +304,11 @@ pub async fn set_policy(
     principal.require(&[Capability::WritePolicy])?;
 
     // Validate before sending so the user gets a precise syntax error.
-    let mut parsed = AclPolicy::parse(&request.policy)
-        .map_err(|err| ApiError::bad_request(format!("{err}")))?;
+    let mut parsed =
+        AclPolicy::parse(&request.policy).map_err(|err| ApiError::bad_request(format!("{err}")))?;
+
+    validate_rules(&parsed).map_err(ApiError::bad_request)?;
+    let warnings = policy_warnings(&parsed);
 
     // Headscale requires `host:port`; normalise bare hosts here as well as in
     // the editor so the API is safe without the UI.
@@ -253,6 +330,7 @@ pub async fn set_policy(
             "ok": true,
             "policy": policy.policy,
             "updatedAt": policy.updated_at,
+            "warnings": warnings,
         }))),
         Err(err) if err.is_policy_read_only() => Err(ApiError::forbidden(
             "The ACL policy is read-only because Headscale is using file mode. Set \

@@ -29,7 +29,40 @@ pub struct AclRule {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proto: Option<String>,
 
+    /// Device posture conditions the source must satisfy.
+    #[serde(default, rename = "srcPosture", skip_serializing_if = "Vec::is_empty")]
+    pub src_posture: Vec<String>,
+
     /// Any additional keys on the rule object.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A rule inside `grants`, the newer Tailscale access syntax.
+///
+/// `ip` carries the protocol and ports (`tcp:443`, `udp:*`, `*`); `app` names
+/// application capabilities. Fields whose exact shape is uncertain keep their
+/// keys in `extra`, so a round trip never drops them.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GrantRule {
+    #[serde(default)]
+    pub src: Vec<String>,
+
+    #[serde(default)]
+    pub dst: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ip: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub via: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub app: Vec<Value>,
+
+    #[serde(default, rename = "srcPosture", skip_serializing_if = "Vec::is_empty")]
+    pub src_posture: Vec<String>,
+
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -50,11 +83,68 @@ pub struct SshRule {
     pub users: Vec<String>,
 
     /// Only meaningful when `action` is `check`.
-    #[serde(default, rename = "checkPeriod", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "checkPeriod",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub check_period: Option<String>,
+
+    /// Device posture conditions the source must satisfy.
+    #[serde(default, rename = "srcPosture", skip_serializing_if = "Vec::is_empty")]
+    pub src_posture: Vec<String>,
 
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Automatic route and exit-node approval by selector.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AutoApprovers {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub routes: BTreeMap<String, Vec<String>>,
+
+    #[serde(default, rename = "exitNode", skip_serializing_if = "Vec::is_empty")]
+    pub exit_node: Vec<String>,
+
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A `nodeAttrs` entry: attributes applied to the nodes a selector names.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeAttr {
+    #[serde(default)]
+    pub target: Vec<String>,
+
+    #[serde(default)]
+    pub attr: Vec<String>,
+
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A section that is structured when its shape is understood, and preserved
+/// verbatim when it is not.
+///
+/// This keeps a policy Headscale accepts from failing to parse here: an
+/// unexpected shape falls back to `Raw` and is re-emitted unchanged, so the
+/// structured editor stays reachable instead of locking on a parse error.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Section<T> {
+    Typed(T),
+    Raw(Value),
+}
+
+impl<T> Section<T> {
+    /// The structured value, when the section parsed into the typed form.
+    pub fn typed(&self) -> Option<&T> {
+        match self {
+            Section::Typed(value) => Some(value),
+            Section::Raw(_) => None,
+        }
+    }
 }
 
 fn default_accept() -> String {
@@ -62,6 +152,10 @@ fn default_accept() -> String {
 }
 
 /// The typed view of a policy document.
+///
+/// Every rule type Tailscale defines has a slot here. Sections whose exact
+/// shape is not modelled are held in a [`Section`], which preserves an
+/// unrecognised shape instead of failing to parse.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Policy {
     #[serde(default)]
@@ -78,6 +172,39 @@ pub struct Policy {
 
     #[serde(default, rename = "tagOwners")]
     pub tag_owners: BTreeMap<String, Vec<String>>,
+
+    /// `grants`, the newer access syntax that can replace `acls`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grants: Option<Section<Vec<GrantRule>>>,
+
+    #[serde(
+        default,
+        rename = "autoApprovers",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub auto_approvers: Option<Section<AutoApprovers>>,
+
+    #[serde(default, rename = "nodeAttrs", skip_serializing_if = "Option::is_none")]
+    pub node_attrs: Option<Section<Vec<NodeAttr>>>,
+
+    /// Named posture conditions referenced by `srcPosture`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub postures: Option<Section<BTreeMap<String, Vec<String>>>>,
+
+    /// Policy assertions, preserved and edited as JSON (shape is version
+    /// dependent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tests: Option<Section<Vec<Value>>>,
+
+    #[serde(default, rename = "sshTests", skip_serializing_if = "Option::is_none")]
+    pub ssh_tests: Option<Section<Vec<Value>>>,
+
+    #[serde(
+        default,
+        rename = "randomizeClientPort",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub randomize_client_port: Option<bool>,
 
     /// Unknown top-level keys, preserved so saving never destroys them.
     #[serde(flatten)]
@@ -105,6 +232,24 @@ impl Policy {
     /// Renders the policy back to text.
     pub fn to_text(&self) -> Result<String> {
         serde_json::to_string_pretty(self).context("failed to serialise the policy")
+    }
+
+    /// The `grants` rules, when the section parsed into the typed form.
+    pub fn grant_rules(&self) -> &[GrantRule] {
+        self.grants
+            .as_ref()
+            .and_then(Section::typed)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// Names declared under `postures`.
+    pub fn posture_names(&self) -> Vec<&str> {
+        self.postures
+            .as_ref()
+            .and_then(Section::typed)
+            .map(|postures| postures.keys().map(String::as_str).collect())
+            .unwrap_or_default()
     }
 
     /// Tags declared under `tagOwners`.
@@ -223,9 +368,59 @@ mod tests {
         assert_eq!(policy.groups_for_user("alice"), vec!["group:ops"]);
         assert!(policy.groups_for_user("carol").is_empty());
 
-        // Unknown top-level keys survive a round trip.
+        // `autoApprovers` is now modelled, and the typed routes survive a
+        // round trip.
+        let approvers = policy
+            .auto_approvers
+            .as_ref()
+            .and_then(Section::typed)
+            .expect("autoApprovers is typed");
+        assert_eq!(approvers.routes["10.0.0.0/8"], vec!["tag:prod"]);
+
         let round_tripped = Policy::parse(&policy.to_text().unwrap()).unwrap();
-        assert!(round_tripped.extra.contains_key("autoApprovers"));
+        let approvers = round_tripped
+            .auto_approvers
+            .as_ref()
+            .and_then(Section::typed)
+            .expect("autoApprovers survives a round trip");
+        assert_eq!(approvers.routes["10.0.0.0/8"], vec!["tag:prod"]);
+    }
+
+    #[test]
+    fn grants_and_src_posture_round_trip() {
+        let text = r#"{
+            "postures": { "posture:latest": ["node:os == 'macos'"] },
+            "grants": [
+                {
+                    "src": ["group:ops"],
+                    "dst": ["tag:server"],
+                    "ip": ["tcp:22", "tcp:443"],
+                    "srcPosture": ["posture:latest"],
+                    "app": [{ "cap": ["funnel"] }]
+                }
+            ]
+        }"#;
+
+        let policy = Policy::parse(text).unwrap();
+        assert_eq!(policy.grant_rules().len(), 1);
+        let grant = &policy.grant_rules()[0];
+        assert_eq!(grant.ip, vec!["tcp:22", "tcp:443"]);
+        assert_eq!(grant.src_posture, vec!["posture:latest"]);
+        assert_eq!(policy.posture_names(), vec!["posture:latest"]);
+
+        let text = policy.to_text().unwrap();
+        assert!(text.contains("srcPosture"), "{text}");
+        assert!(text.contains("\"cap\""), "{text}");
+    }
+
+    /// A section with an unexpected shape must not fail the parse; it is kept
+    /// verbatim so the structured editor stays reachable.
+    #[test]
+    fn an_unexpected_section_shape_is_preserved() {
+        let policy = Policy::parse(r#"{"grants":"not-an-array","acls":[]}"#).unwrap();
+        assert!(policy.grant_rules().is_empty());
+        let text = policy.to_text().unwrap();
+        assert!(text.contains("\"grants\": \"not-an-array\""), "{text}");
     }
 
     #[test]
@@ -282,9 +477,10 @@ mod tests {
 
     #[test]
     fn acl_rules_preserve_unknown_fields() {
-        let policy =
-            Policy::parse(r#"{"acls":[{"action":"accept","src":["*"],"dst":["*:*"],"proto":"tcp"}]}"#)
-                .unwrap();
+        let policy = Policy::parse(
+            r#"{"acls":[{"action":"accept","src":["*"],"dst":["*:*"],"proto":"tcp"}]}"#,
+        )
+        .unwrap();
         let text = policy.to_text().unwrap();
         assert!(text.contains("\"proto\": \"tcp\""));
     }

@@ -204,9 +204,9 @@ function fullDomain(): string {
             <p class="text-sm font-medium">{{ t('machine.routes.exitNode') }}</p>
             <p class="text-muted-foreground text-sm">
               {{
-                machine.approvedRoutes.includes('0.0.0.0/0')
+                machine.exit_approved
                   ? t('machine.routes.allowed')
-                  : machine.availableRoutes.includes('0.0.0.0/0')
+                  : machine.exit_node
                     ? t('machine.routes.awaiting')
                     : '—'
               }}

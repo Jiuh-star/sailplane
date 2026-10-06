@@ -36,7 +36,9 @@ impl SailplaneUser {
             headscale_user_id: row.get("headscale_user_id")?,
             created_at: millis_to_datetime(row.get("created_at")?),
             updated_at: millis_to_datetime(row.get("updated_at")?),
-            last_login_at: row.get::<_, Option<i64>>("last_login_at")?.map(millis_to_datetime),
+            last_login_at: row
+                .get::<_, Option<i64>>("last_login_at")?
+                .map(millis_to_datetime),
         })
     }
 

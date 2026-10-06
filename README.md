@@ -41,6 +41,9 @@ The product names, environment variables and default paths do not; see the
   database keeps the most recent 5000 entries.
 - **Auth** — Headscale API keys, OpenID Connect (PKCE, discovery, role claims)
   and trusted reverse-proxy authentication.
+- **Configuration in the UI** — every setting is stored in the database and
+  edited from the Deployment page, with a first-run onboarding wizard. A legacy
+  YAML file is imported once, then deprecated.
 - **Live updates** — server-sent events push node and user changes to every open
   browser.
 - **Browser SSH** — open a terminal to a tailnet node from the browser.

@@ -543,7 +543,6 @@ fn insert_chain(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -583,7 +582,10 @@ policy:
         editor
             .patch(
                 &parse_path("dns.search_domains"),
-                Some(json!(["ok.example.com", "x\rserver_url:\r  https://evil.example"])),
+                Some(json!([
+                    "ok.example.com",
+                    "x\rserver_url:\r  https://evil.example"
+                ])),
             )
             .unwrap();
 
@@ -643,7 +645,10 @@ policy:
     fn replaces_a_scalar_and_keeps_comments() {
         let mut editor = YamlEditor::new(CONFIG);
         editor
-            .set(&parse_path("dns.base_domain"), Value::String("ts.example.net".into()))
+            .set(
+                &parse_path("dns.base_domain"),
+                Value::String("ts.example.net".into()),
+            )
             .unwrap();
 
         let text = editor.as_str();
@@ -659,7 +664,9 @@ policy:
     #[test]
     fn replaces_a_boolean() {
         let mut editor = YamlEditor::new(CONFIG);
-        editor.set(&parse_path("dns.magic_dns"), Value::Bool(false)).unwrap();
+        editor
+            .set(&parse_path("dns.magic_dns"), Value::Bool(false))
+            .unwrap();
         assert!(editor.as_str().contains("magic_dns: false"));
     }
 
@@ -715,7 +722,10 @@ policy:
     fn creating_a_missing_parent_chain_appends_a_block() {
         let mut editor = YamlEditor::new("dns:\n  magic_dns: true\n");
         editor
-            .set(&parse_path("oidc.allowed_domains"), serde_json::json!(["corp.example"]))
+            .set(
+                &parse_path("oidc.allowed_domains"),
+                serde_json::json!(["corp.example"]),
+            )
             .unwrap();
 
         let text = editor.as_str();
@@ -747,7 +757,11 @@ policy:
             .lines()
             .filter_map(|line| line.trim().split_once(':').map(|(key, _)| key))
             .collect();
-        assert_eq!(keys.iter().filter(|key| **key == "dns").count(), 1, "{text}");
+        assert_eq!(
+            keys.iter().filter(|key| **key == "dns").count(),
+            1,
+            "{text}"
+        );
         assert_eq!(
             keys.iter().filter(|key| **key == "nameservers").count(),
             1,
@@ -822,5 +836,3 @@ policy:
         assert_eq!(editor.get_str(&parse_path("b")).as_deref(), Some("2"));
     }
 }
-
-

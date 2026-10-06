@@ -43,7 +43,10 @@ pub struct OidcRequest {
 }
 
 /// Returns the Headscale OIDC settings. `GET /api/oidc`
-pub async fn get(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn get(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     principal.require(&[Capability::ReadNetwork])?;
 
     let document = state
@@ -147,10 +150,7 @@ pub async fn update(
     }
 
     for (value, path) in [
-        (
-            request.use_expiry_from_token,
-            "oidc.use_expiry_from_token",
-        ),
+        (request.use_expiry_from_token, "oidc.use_expiry_from_token"),
         (request.pkce_enabled, "oidc.pkce.enabled"),
         (
             request.only_start_if_available,
@@ -277,7 +277,10 @@ async fn unroutable_provider(
         return None;
     }
 
-    let url = format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/'));
+    let url = format!(
+        "{}/.well-known/openid-configuration",
+        issuer.trim_end_matches('/')
+    );
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .no_proxy()
@@ -301,11 +304,13 @@ fn oidc_state(state: &SharedState) -> anyhow::Result<Option<String>> {
         .get_str(&parse_path("oidc.client_id"))
         .unwrap_or_default();
 
-    Ok(match (issuer.trim().is_empty(), client_id.trim().is_empty()) {
-        (false, true) => Some("oidc.client_id".to_string()),
-        (true, false) => Some("oidc.issuer".to_string()),
-        _ => None,
-    })
+    Ok(
+        match (issuer.trim().is_empty(), client_id.trim().is_empty()) {
+            (false, true) => Some("oidc.client_id".to_string()),
+            (true, false) => Some("oidc.issuer".to_string()),
+            _ => None,
+        },
+    )
 }
 
 fn dedupe(values: Vec<String>) -> Vec<String> {
@@ -329,12 +334,16 @@ fn validate_url(label: &str, value: &str) -> ApiResult<()> {
         return Ok(());
     }
     if has_control_characters(value) || value.chars().any(char::is_whitespace) {
-        return Err(ApiError::bad_request(format!("{label} cannot contain spaces")));
+        return Err(ApiError::bad_request(format!(
+            "{label} cannot contain spaces"
+        )));
     }
     let parsed = url::Url::parse(value)
         .map_err(|_| ApiError::bad_request(format!("`{value}` is not a valid URL")))?;
     if !matches!(parsed.scheme(), "http" | "https") {
-        return Err(ApiError::bad_request(format!("{label} must use http or https")));
+        return Err(ApiError::bad_request(format!(
+            "{label} must use http or https"
+        )));
     }
     Ok(())
 }
@@ -361,7 +370,9 @@ fn validate_token(label: &str, value: &str) -> ApiResult<()> {
 /// line of defence.
 fn validate_secret(value: &str) -> ApiResult<()> {
     if has_control_characters(value) {
-        return Err(ApiError::bad_request("The client secret cannot contain line breaks"));
+        return Err(ApiError::bad_request(
+            "The client secret cannot contain line breaks",
+        ));
     }
     Ok(())
 }

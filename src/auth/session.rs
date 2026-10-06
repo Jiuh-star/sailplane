@@ -66,8 +66,8 @@ pub fn decode_cookie(value: &str, secret: &str) -> Option<CookiePayload> {
 
 fn sign(json: &[u8], secret: &str) -> Vec<u8> {
     use hmac::Mac;
-    let mut mac =
-        hmac::Hmac::<sha2::Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key length");
+    let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(secret.as_bytes())
+        .expect("HMAC accepts any key length");
     mac.update(json);
     mac.finalize().into_bytes().to_vec()
 }
@@ -144,7 +144,10 @@ impl Default for CookieOptions {
 impl CookieOptions {
     /// Renders a `Set-Cookie` header value for the given cookie.
     pub fn render(&self, name: &str, value: &str) -> String {
-        let mut out = format!("{name}={value}; Path={}; Max-Age={}", self.path, self.max_age_seconds);
+        let mut out = format!(
+            "{name}={value}; Path={}; Max-Age={}",
+            self.path, self.max_age_seconds
+        );
         if self.http_only {
             out.push_str("; HttpOnly");
         }
@@ -272,7 +275,10 @@ mod tests {
     #[test]
     fn cookie_header_parsing_ignores_surrounding_cookies() {
         let header = Some("a=1; _sailplane_auth=xyz; b=2");
-        assert_eq!(read_cookie(header, "_sailplane_auth").as_deref(), Some("xyz"));
+        assert_eq!(
+            read_cookie(header, "_sailplane_auth").as_deref(),
+            Some("xyz")
+        );
         assert_eq!(read_cookie(header, "missing"), None);
         assert_eq!(read_cookie(None, "_sailplane_auth"), None);
     }

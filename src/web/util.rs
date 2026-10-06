@@ -29,7 +29,8 @@ pub async fn healthz(State(state): State<SharedState>) -> Response {
 
 /// Returns build and version info; guarded by `server.info_secret`. `GET /api/info`
 pub async fn info(State(state): State<SharedState>, headers: HeaderMap) -> ApiResult<Response> {
-    let Some(secret) = state.config.server.info_secret.as_deref() else {
+    let config = state.config();
+    let Some(secret) = config.server.info_secret.as_deref() else {
         return Err(ApiError::forbidden(
             "The info endpoint is disabled because `server.info_secret` is not set",
         ));
@@ -42,8 +43,10 @@ pub async fn info(State(state): State<SharedState>, headers: HeaderMap) -> ApiRe
 
     match provided {
         None => return Err(ApiError::unauthorized("Missing bearer token")),
-        Some(token) if !crate::auth::session::constant_time_eq(token.as_bytes(), secret.as_bytes()) => {
-            return Err(ApiError::forbidden("Invalid info secret"))
+        Some(token)
+            if !crate::auth::session::constant_time_eq(token.as_bytes(), secret.as_bytes()) =>
+        {
+            return Err(ApiError::forbidden("Invalid info secret"));
         }
         Some(_) => {}
     }
@@ -94,7 +97,7 @@ pub async fn color_scheme(
         format!(
             "{}=; Path=/; Max-Age=0; SameSite=Lax{}",
             crate::auth::session::COLOR_SCHEME_COOKIE,
-            if state.config.server.cookie_secure {
+            if state.config().server.cookie_secure {
                 "; Secure"
             } else {
                 ""
@@ -105,7 +108,7 @@ pub async fn color_scheme(
             "{}={}; Path=/; Max-Age=34560000; SameSite=Lax{}",
             crate::auth::session::COLOR_SCHEME_COOKIE,
             scheme,
-            if state.config.server.cookie_secure {
+            if state.config().server.cookie_secure {
                 "; Secure"
             } else {
                 ""

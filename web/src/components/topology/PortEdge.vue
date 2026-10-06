@@ -7,8 +7,15 @@ import { computed } from 'vue'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@vue-flow/core'
 
 const props = defineProps<
-  EdgeProps<{ ports: string; kind: 'acl' | 'ssh'; dimmed: boolean; labelOffset?: number }>
+  EdgeProps<{ ports: string; kind: 'acl' | 'grant' | 'ssh'; dimmed: boolean; labelOffset?: number }>
 >()
+
+/** Each access syntax gets its own colour and line style. */
+const KIND_STYLE = {
+  acl: { stroke: 'var(--foreground)', strokeDasharray: undefined },
+  ssh: { stroke: 'var(--chart-2)', strokeDasharray: '6 4' },
+  grant: { stroke: 'var(--chart-4)', strokeDasharray: '2 3' },
+} as const
 
 /** Recomputed if the endpoints move, which the layout does on a resize. */
 const geometry = computed(() => {
@@ -22,6 +29,16 @@ const geometry = computed(() => {
   })
   return { path, labelX, labelY }
 })
+
+const lineStyle = computed(() => {
+  const base = KIND_STYLE[props.data?.kind ?? 'acl']
+  return {
+    stroke: base.stroke,
+    strokeWidth: props.selected ? 3 : 1.5,
+    strokeDasharray: base.strokeDasharray,
+    opacity: props.data?.dimmed ? 0.15 : 0.85,
+  }
+})
 </script>
 
 <template>
@@ -29,12 +46,7 @@ const geometry = computed(() => {
     :id="id"
     :path="geometry.path"
     :marker-end="markerEnd"
-    :style="{
-      stroke: $props.data?.kind === 'ssh' ? 'var(--chart-2)' : 'var(--foreground)',
-      strokeWidth: $props.selected ? 3 : 1.5,
-      strokeDasharray: $props.data?.kind === 'ssh' ? '6 4' : undefined,
-      opacity: $props.data?.dimmed ? 0.15 : 0.85,
-    }"
+    :style="lineStyle"
   />
 
   <EdgeLabelRenderer>

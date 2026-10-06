@@ -26,7 +26,10 @@ fn current_override(state: &SharedState) -> Result<bool, ApiError> {
 
 /// Ensures the caller may edit network settings and that the config is
 /// writable.
-fn require_writable(state: &SharedState, principal: &crate::auth::Principal) -> Result<(), ApiError> {
+fn require_writable(
+    state: &SharedState,
+    principal: &crate::auth::Principal,
+) -> Result<(), ApiError> {
     principal.require(&[Capability::WriteNetwork])?;
     if !state.hsconfig.writable() {
         return Err(ApiError::forbidden(
@@ -180,7 +183,9 @@ fn validate_split_name(split_name: Option<&str>) -> ApiResult<()> {
     if name == "global" || crate::util::is_valid_dns_name(name) {
         return Ok(());
     }
-    Err(ApiError::bad_request("Enter a valid domain name for the split DNS entry"))
+    Err(ApiError::bad_request(
+        "Enter a valid domain name for the split DNS entry",
+    ))
 }
 
 fn split_path(split_name: Option<&str>, suffix: &str) -> String {
@@ -214,7 +219,9 @@ pub async fn add_nameserver(
         .get_string_list(&parse_path(&path));
 
     if servers.iter().any(|existing| existing == ns) {
-        return Err(ApiError::bad_request("That nameserver is already configured"));
+        return Err(ApiError::bad_request(
+            "That nameserver is already configured",
+        ));
     }
     servers.push(ns.to_string());
 
@@ -295,7 +302,12 @@ pub async fn add_search_domain(
 ) -> ApiResult<Json<Value>> {
     require_writable(&state, &principal)?;
 
-    let Some(domain) = request.domain.as_deref().map(str::trim).filter(|d| !d.is_empty()) else {
+    let Some(domain) = request
+        .domain
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+    else {
         return Err(ApiError::bad_request("Enter a search domain"));
     };
 
@@ -310,7 +322,9 @@ pub async fn add_search_domain(
         .get_string_list(&parse_path("dns.search_domains"));
 
     if domains.iter().any(|existing| existing == domain) {
-        return Err(ApiError::bad_request("That search domain is already configured"));
+        return Err(ApiError::bad_request(
+            "That search domain is already configured",
+        ));
     }
     domains.push(domain.to_string());
 
@@ -400,17 +414,23 @@ pub async fn add_record(
 
     let (name, record_type, value) = request.parts();
     if name.is_empty() || record_type.is_empty() || value.is_empty() {
-        return Err(ApiError::bad_request("Name, type and value are all required"));
+        return Err(ApiError::bad_request(
+            "Name, type and value are all required",
+        ));
     }
     if !matches!(record_type.as_str(), "A" | "AAAA" | "CNAME") {
-        return Err(ApiError::bad_request("Record type must be A, AAAA or CNAME"));
+        return Err(ApiError::bad_request(
+            "Record type must be A, AAAA or CNAME",
+        ));
     }
     if !crate::util::is_valid_dns_name(&name) {
         return Err(ApiError::bad_request("Enter a valid record name"));
     }
     if record_type == "CNAME" {
         if !crate::util::is_valid_dns_name(&value) {
-            return Err(ApiError::bad_request("A CNAME target must be a domain name"));
+            return Err(ApiError::bad_request(
+                "A CNAME target must be a domain name",
+            ));
         }
     } else if value.parse::<std::net::IpAddr>().is_err() {
         return Err(ApiError::bad_request("Enter a valid IP address"));

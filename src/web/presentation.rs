@@ -181,6 +181,11 @@ pub struct MachineView {
     pub expired: bool,
     pub expiry_disabled: bool,
 
+    /// True when the machine advertises an exit route (`0.0.0.0/0` or `::/0`).
+    pub exit_node: bool,
+    /// True when an exit route is approved. Implies `exit_node`.
+    pub exit_approved: bool,
+
     /// UI status tags (exit node, subnet routes, Tailscale SSH, …).
     pub status_tags: Vec<StatusTag>,
 
@@ -234,6 +239,8 @@ impl MachineView {
             })
             .unwrap_or_default();
 
+        let (exit_node, exit_approved) = exit_route_state(machine);
+
         Self {
             machine: machine.clone(),
             tags,
@@ -241,7 +248,9 @@ impl MachineView {
             ipv6: machine.ipv6().map(str::to_string),
             expired: machine.is_expired(),
             expiry_disabled: machine.expiry_disabled(),
-            status_tags: status_tags(machine, host_info),
+            exit_node,
+            exit_approved,
+            status_tags: status_tags(machine, host_info, (exit_node, exit_approved)),
             host_info: host_info.cloned(),
             version: host_info
                 .and_then(|info| info.get("IPNVersion"))
@@ -257,7 +266,26 @@ impl MachineView {
     }
 }
 
-fn status_tags(machine: &Machine, host_info: Option<&Value>) -> Vec<StatusTag> {
+/// Whether a machine advertises an exit route and whether one is approved.
+///
+/// A dual-stack exit node advertises `0.0.0.0/0` and `::/0`, but that is one
+/// exit node, not two: callers collapse both routes into a single state.
+fn exit_route_state(machine: &Machine) -> (bool, bool) {
+    let is_exit = |route: &String| Machine::is_exit_route(route);
+    let advertised = machine
+        .available_routes
+        .iter()
+        .chain(machine.approved_routes.iter())
+        .any(is_exit);
+    let approved = machine.approved_routes.iter().any(is_exit);
+    (advertised, approved)
+}
+
+fn status_tags(
+    machine: &Machine,
+    host_info: Option<&Value>,
+    (exit_advertised, exit_approved): (bool, bool),
+) -> Vec<StatusTag> {
     let mut tags = Vec::new();
 
     if machine.is_expired() {
@@ -276,35 +304,43 @@ fn status_tags(machine: &Machine, host_info: Option<&Value>) -> Vec<StatusTag> {
         });
     }
 
+    // One exit-node badge regardless of how many exit routes (v4 and v6) the
+    // machine advertises. Approval wins over a pending advertisement.
+    if exit_approved {
+        tags.push(StatusTag {
+            key: "exitNode",
+            label: "Exit node".into(),
+            kind: "success",
+            subject: None,
+        });
+    } else if exit_advertised {
+        tags.push(StatusTag {
+            key: "exitNodePending",
+            label: "Exit node (pending)".into(),
+            kind: "warning",
+            subject: None,
+        });
+    }
+
     let approved = &machine.approved_routes;
     let available = &machine.available_routes;
 
     for route in available {
-        let is_exit = route == "0.0.0.0/0" || route == "::/0";
-        let blessed = approved.contains(route);
-        if is_exit {
-            tags.push(StatusTag {
-                key: if blessed { "exitNode" } else { "exitNodePending" },
-                label: if blessed {
-                    "Exit node".into()
-                } else {
-                    "Exit node (pending)".into()
-                },
-                kind: if blessed { "success" } else { "warning" },
-                subject: None,
-            });
-        } else {
-            tags.push(StatusTag {
-                key: if blessed { "subnet" } else { "subnetPending" },
-                label: if blessed {
-                    format!("Subnet {route}")
-                } else {
-                    format!("Subnet {route} (pending)")
-                },
-                kind: if blessed { "success" } else { "warning" },
-                subject: Some(route.clone()),
-            });
+        // Exit routes are reported by the single badge above.
+        if Machine::is_exit_route(route) {
+            continue;
         }
+        let blessed = approved.contains(route);
+        tags.push(StatusTag {
+            key: if blessed { "subnet" } else { "subnetPending" },
+            label: if blessed {
+                format!("Subnet {route}")
+            } else {
+                format!("Subnet {route} (pending)")
+            },
+            kind: if blessed { "success" } else { "warning" },
+            subject: Some(route.clone()),
+        });
     }
 
     if host_info
@@ -367,9 +403,7 @@ pub fn tag_usage(nodes: &[Machine]) -> Value {
 
     for node in nodes {
         for tag in node.effective_tags() {
-            let entry = usage
-                .entry(tag)
-                .or_insert_with(|| Value::Array(Vec::new()));
+            let entry = usage.entry(tag).or_insert_with(|| Value::Array(Vec::new()));
             if let Some(array) = entry.as_array_mut() {
                 array.push(Value::String(
                     node.given_name.clone().max(node.name.clone()),
@@ -426,18 +460,46 @@ mod tests {
         assert_eq!(view.tags, vec!["tag:a"]);
         assert_eq!(view.ipv4.as_deref(), Some("100.64.0.2"));
         assert_eq!(view.ipv6.as_deref(), Some("fd7a::2"));
+        assert!(view.exit_node);
+        assert!(!view.exit_approved);
 
         let labels: Vec<&str> = view.status_tags.iter().map(|t| t.label.as_str()).collect();
         assert!(labels.contains(&"Subnet 10.0.0.0/8"));
         assert!(labels.contains(&"Exit node (pending)"));
     }
 
+    /// A dual-stack exit node advertises both exit routes but is one exit node,
+    /// so it must produce exactly one badge. Approval wins over a pending
+    /// advertisement.
     #[test]
-    fn expired_machines_are_flagged() {
+    fn dual_stack_exit_node_shows_one_badge() {
         let machine: Machine = serde_json::from_str(
-            r#"{"id":"1","expiry":"2000-01-01T00:00:00Z"}"#,
+            r#"{
+                "id": "1",
+                "givenName": "gateway",
+                "availableRoutes": ["0.0.0.0/0", "::/0"],
+                "approvedRoutes": ["::/0"]
+            }"#,
         )
         .unwrap();
+
+        let view = MachineView::build(&machine, None);
+        assert!(view.exit_node);
+        assert!(view.exit_approved);
+
+        let exit: Vec<&StatusTag> = view
+            .status_tags
+            .iter()
+            .filter(|tag| tag.key.starts_with("exitNode"))
+            .collect();
+        assert_eq!(exit.len(), 1, "one badge for both exit routes: {exit:?}");
+        assert_eq!(exit[0].key, "exitNode");
+    }
+
+    #[test]
+    fn expired_machines_are_flagged() {
+        let machine: Machine =
+            serde_json::from_str(r#"{"id":"1","expiry":"2000-01-01T00:00:00Z"}"#).unwrap();
         let view = MachineView::build(&machine, None);
         assert!(view.expired);
         assert!(view.status_tags.iter().any(|t| t.label == "Expired"));

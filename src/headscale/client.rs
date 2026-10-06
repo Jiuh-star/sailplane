@@ -32,7 +32,10 @@ pub enum HeadscaleError {
     },
 
     #[error("failed to reach headscale at {request_url}: {message}")]
-    Connection { request_url: String, message: String },
+    Connection {
+        request_url: String,
+        message: String,
+    },
 }
 
 impl HeadscaleError {
@@ -75,7 +78,8 @@ pub struct Headscale {
 }
 
 struct Inner {
-    base_url: String,
+    /// Swappable so a change to `headscale.url` takes effect without a restart.
+    base_url: RwLock<String>,
     http: reqwest::Client,
     version: RwLock<ServerVersion>,
 }
@@ -113,14 +117,39 @@ impl Headscale {
 
         Ok(Self {
             inner: Arc::new(Inner {
-                base_url: url.trim_end_matches('/').to_string(),
+                base_url: RwLock::new(url.trim_end_matches('/').to_string()),
                 http,
                 version: RwLock::new(ServerVersion::default()),
             }),
         })
     }
+
+    /// The current Headscale base URL.
+    pub fn base_url(&self) -> String {
+        self.inner
+            .base_url
+            .read()
+            .expect("base url lock poisoned")
+            .clone()
+    }
+
+    /// Points new requests at a different Headscale URL. A no-op when the URL
+    /// is unchanged, so a per-tick caller does not take the write lock.
+    pub fn set_base_url(&self, url: &str) {
+        let url = url.trim_end_matches('/');
+        let mut current = self.inner.base_url.write().expect("base url lock poisoned");
+        if current.as_str() == url {
+            return;
+        }
+        *current = url.to_string();
+    }
+
     pub fn version(&self) -> ServerVersion {
-        self.inner.version.read().expect("version lock poisoned").clone()
+        self.inner
+            .version
+            .read()
+            .expect("version lock poisoned")
+            .clone()
     }
 
     pub fn capabilities(&self) -> Capabilities {
@@ -134,7 +163,7 @@ impl Headscale {
     /// Fetches `/version` once. `Ok(None)` means the endpoint is absent, and
     /// the server is older than 0.27.0.
     pub async fn probe_version(&self) -> Result<Option<ServerVersion>> {
-        let url = format!("{}/version", self.inner.base_url);
+        let url = format!("{}/version", self.base_url());
         let response = self
             .inner
             .http
@@ -157,7 +186,10 @@ impl Headscale {
             Ok(response) => {
                 let status = response.status();
                 let raw = response.text().await.unwrap_or_default();
-                anyhow::bail!("GET /version returned {status}: {}", crate::util::truncate(&raw, 200))
+                anyhow::bail!(
+                    "GET /version returned {status}: {}",
+                    crate::util::truncate(&raw, 200)
+                )
             }
             Err(err) => Err(err).context("failed to reach headscale /version"),
         }
@@ -204,7 +236,7 @@ impl Headscale {
     /// Checks server health. `GET /health`. Never fails; a transport error
     /// means unhealthy.
     pub async fn health(&self) -> bool {
-        let url = format!("{}/health", self.inner.base_url);
+        let url = format!("{}/health", self.base_url());
         match self.inner.http.get(&url).send().await {
             Ok(response) => response.status().is_success(),
             Err(_) => false,
@@ -228,7 +260,7 @@ impl Headscale {
         body: Option<Value>,
     ) -> Result<Value, HeadscaleError> {
         let request_url = format!("{} {}", method, path);
-        let url = format!("{}/api/{}", self.inner.base_url, path.trim_start_matches('/'));
+        let url = format!("{}/api/{}", self.base_url(), path.trim_start_matches('/'));
 
         let mut request = self.inner.http.request(method.clone(), &url);
 
@@ -244,15 +276,17 @@ impl Headscale {
             request = request.query(query);
         }
         let carries_body = matches!(method, Method::POST | Method::PUT | Method::PATCH);
-        if carries_body
-            && let Some(payload) = body {
-                request = request.json(&payload);
-            }
+        if carries_body && let Some(payload) = body {
+            request = request.json(&payload);
+        }
 
-        let response = request.send().await.map_err(|err| HeadscaleError::Connection {
-            request_url: request_url.clone(),
-            message: format!("{err}"),
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|err| HeadscaleError::Connection {
+                request_url: request_url.clone(),
+                message: format!("{err}"),
+            })?;
 
         let status = response.status();
         let raw = response.text().await.unwrap_or_default();
@@ -292,7 +326,11 @@ impl ApiClient {
         self.headscale.capabilities()
     }
 
-    async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(String, String)]) -> Result<T, HeadscaleError> {
+    async fn get<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> Result<T, HeadscaleError> {
         let value = self
             .headscale
             .send(Some(&self.api_key), Method::GET, path, query, None)
@@ -351,11 +389,7 @@ impl ApiClient {
 
     /// Registers a node from a registration key. It sends the parameters as
     /// both query string and JSON body, as upstream does.
-    pub async fn register_node(
-        &self,
-        user: &str,
-        key: &str,
-    ) -> Result<Machine, HeadscaleError> {
+    pub async fn register_node(&self, user: &str, key: &str) -> Result<Machine, HeadscaleError> {
         let query = vec![
             ("user".to_string(), user.to_string()),
             ("key".to_string(), key.to_string()),
@@ -445,7 +479,10 @@ impl ApiClient {
             body.insert("email".into(), Value::String(email.to_string()));
         }
         if let Some(display_name) = display_name {
-            body.insert("displayName".into(), Value::String(display_name.to_string()));
+            body.insert(
+                "displayName".into(),
+                Value::String(display_name.to_string()),
+            );
         }
         if let Some(picture_url) = picture_url {
             body.insert("pictureUrl".into(), Value::String(picture_url.to_string()));
@@ -563,9 +600,13 @@ impl ApiClient {
     /// The body carries the id, not the path prefix. Headscale masks the
     /// listed prefix with `*`, so the two lookups are not interchangeable.
     pub async fn expire_api_key(&self, id: u64) -> Result<(), HeadscaleError> {
-        self.post::<Value>("v1/apikey/expire", &[], Some(serde_json::json!({ "id": id })))
-            .await
-            .map(|_| ())
+        self.post::<Value>(
+            "v1/apikey/expire",
+            &[],
+            Some(serde_json::json!({ "id": id })),
+        )
+        .await
+        .map(|_| ())
     }
 
     // --- Policy ---
@@ -621,6 +662,16 @@ mod tests {
         assert_eq!(urlencode("my machine"), "my%20machine");
         assert_eq!(urlencode("safe-name_1"), "safe-name_1");
         assert_eq!(urlencode("a/b"), "a%2Fb");
+    }
+
+    /// Changing `headscale.url` in the UI must repoint the existing client
+    /// without a restart.
+    #[test]
+    fn base_url_can_be_swapped() {
+        let headscale = Headscale::new("http://one.example/", None).unwrap();
+        assert_eq!(headscale.base_url(), "http://one.example");
+        headscale.set_base_url("http://two.example/");
+        assert_eq!(headscale.base_url(), "http://two.example");
     }
 
     /// Serves the node-expire route, echoing the query back and recording it.

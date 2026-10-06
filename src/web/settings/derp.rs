@@ -33,7 +33,10 @@ pub struct DerpRequest {
 }
 
 /// Returns the DERP configuration. `GET /api/derp`
-pub async fn get(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn get(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     principal.require(&[Capability::ReadNetwork])?;
 
     let document = state
@@ -199,7 +202,9 @@ fn dedupe(values: Vec<String>) -> Vec<String> {
 fn validate_url(url: &str) -> ApiResult<()> {
     let url = url.trim();
     if url.chars().any(char::is_control) || url.chars().any(char::is_whitespace) {
-        return Err(ApiError::bad_request("A DERP map URL cannot contain spaces"));
+        return Err(ApiError::bad_request(
+            "A DERP map URL cannot contain spaces",
+        ));
     }
 
     let parsed = url::Url::parse(url)
@@ -237,9 +242,7 @@ pub(super) fn validate_duration(value: &str, allow_days: bool) -> ApiResult<()> 
     while !rest.is_empty() {
         let digits = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
         if digits == 0 {
-            return Err(ApiError::bad_request(
-                "Use a duration such as 24h or 1h30m",
-            ));
+            return Err(ApiError::bad_request("Use a duration such as 24h or 1h30m"));
         }
         rest = &rest[digits..];
         let units: &[&str] = if allow_days {
@@ -249,9 +252,7 @@ pub(super) fn validate_duration(value: &str, allow_days: bool) -> ApiResult<()> 
         };
         let unit = units.iter().find(|unit| rest.starts_with(**unit));
         let Some(unit) = unit else {
-            return Err(ApiError::bad_request(
-                "Use a duration such as 24h or 1h30m",
-            ));
+            return Err(ApiError::bad_request("Use a duration such as 24h or 1h30m"));
         };
         rest = &rest[unit.len()..];
     }

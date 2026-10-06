@@ -98,8 +98,8 @@ impl DockerIntegration {
             urlencode(&filter)
         );
         let body = self.request_raw("GET", &path, None).await?;
-        let containers: Vec<Value> = serde_json::from_slice(&body)
-            .context("failed to parse the Docker container list")?;
+        let containers: Vec<Value> =
+            serde_json::from_slice(&body).context("failed to parse the Docker container list")?;
 
         let container = containers
             .into_iter()
@@ -110,9 +110,10 @@ impl DockerIntegration {
                         .get("Names")
                         .and_then(Value::as_array)
                         .map(|names| {
-                            names.iter().filter_map(Value::as_str).any(|name| {
-                                name.trim_start_matches('/') == wanted
-                            })
+                            names
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .any(|name| name.trim_start_matches('/') == wanted)
                         })
                         .unwrap_or(false),
                     None => true,
@@ -360,8 +361,7 @@ impl LogDemux {
         let mut consumed = 0;
         while self.buffer.len() - consumed >= 8 {
             let header = &self.buffer[consumed..consumed + 8];
-            let size =
-                u32::from_be_bytes([header[4], header[5], header[6], header[7]]) as usize;
+            let size = u32::from_be_bytes([header[4], header[5], header[6], header[7]]) as usize;
             if self.buffer.len() - consumed - 8 < size {
                 break;
             }
@@ -407,7 +407,10 @@ mod tests {
         let uri: hyper::Uri = format!("/v1.44/containers/json?filters={encoded}&limit=1")
             .parse()
             .expect("encoded filter must form a valid URI");
-        assert_eq!(uri.query(), Some(format!("filters={encoded}&limit=1").as_str()));
+        assert_eq!(
+            uri.query(),
+            Some(format!("filters={encoded}&limit=1").as_str())
+        );
     }
 
     #[test]

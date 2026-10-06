@@ -14,7 +14,7 @@ mod util;
 mod web;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,13 +33,18 @@ const SESSION_SWEEP_INTERVAL: Duration = Duration::from_secs(15 * 60);
     about = "A feature-complete web UI for Headscale"
 )]
 struct Cli {
-    /// Path to the configuration file.
+    /// Legacy configuration file. Imported into the database on first start,
+    /// then deprecated.
     #[arg(
         long,
         env = "SAILPLANE_CONFIG_PATH",
         default_value = "/etc/sailplane/config.yaml"
     )]
     config: PathBuf,
+
+    /// Import a configuration file into the database and exit.
+    #[arg(long)]
+    import_config: Option<PathBuf>,
 
     /// Validate the configuration and exit.
     #[arg(long)]
@@ -48,30 +53,52 @@ struct Cli {
     /// Print the effective configuration and exit.
     #[arg(long)]
     show_config: bool,
+
+    /// Reveal secret values in `--show-config` output.
+    #[arg(long)]
+    show_secrets: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Load configuration before installing the logger, so a config error is
-    // reported plainly rather than through a half-configured subscriber.
-    let config = match config::load_from(&cli.config) {
-        Ok(config) => Arc::new(config),
+    init_logging(config::env_flag("SAILPLANE_DEBUG_LOG") || config::env_flag("SAILPLANE_DEBUG"));
+
+    let data_path = boot_data_path(&cli.config);
+    let db_path = data_path.join("sailplane_persist.db");
+    let db = match db::Db::open(&db_path) {
+        Ok(db) => db,
         Err(err) => {
-            init_logging(false);
+            eprintln!(
+                "sailplane: failed to open the database at {}: {err:#}",
+                db_path.display()
+            );
+            std::process::exit(1);
+        }
+    };
+
+    // The legacy file is an import source only. `--config` still works for a
+    // one-time migration; a missing file is not an error.
+    let legacy = cli.config.exists().then_some(cli.config.as_path());
+    let settings = match config::store::Settings::bootstrap(&db, legacy, Some(&data_path)) {
+        Ok(settings) => settings,
+        Err(err) => {
             eprintln!("sailplane: {err:#}");
             std::process::exit(1);
         }
     };
 
-    init_logging(config.debug_logging());
+    if let Some(path) = cli.import_config.as_deref() {
+        config::import::import_file(&db, path)
+            .with_context(|| format!("failed to import {}", path.display()))?;
+        settings.reload(&db)?;
+        println!("imported {} into the database", path.display());
+        return Ok(());
+    }
 
     if cli.show_config {
-        println!(
-            "{}",
-            serde_yaml_ng::to_string(&*config).context("failed to render the configuration")?
-        );
+        println!("{}", render_config(&settings.snapshot(), cli.show_secrets)?);
         return Ok(());
     }
 
@@ -80,11 +107,70 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Err(err) = run(config).await {
+    if let Err(err) = run(settings, db).await {
         tracing::error!("{err:#}");
         return Err(err);
     }
     Ok(())
+}
+
+/// The data directory. It must be known before the database, and therefore
+/// before any stored setting, is read.
+///
+/// An environment variable wins. Otherwise a legacy config file's
+/// `server.data_path` is used, so an existing deployment upgrades in place
+/// without extra flags.
+fn boot_data_path(legacy: &Path) -> PathBuf {
+    if let Ok(value) = std::env::var("SAILPLANE_DATA_PATH") {
+        return PathBuf::from(value);
+    }
+    if let Ok(value) = std::env::var("SAILPLANE_SERVER__DATA_PATH") {
+        return PathBuf::from(value);
+    }
+    if let Ok(raw) = std::fs::read_to_string(legacy)
+        && let Ok(value) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&raw)
+        && let Some(path) = value
+            .get("server")
+            .and_then(|server| server.get("data_path"))
+            .and_then(|path| path.as_str())
+    {
+        return PathBuf::from(path);
+    }
+    PathBuf::from("/var/lib/sailplane/")
+}
+
+/// Renders the configuration as YAML, masking secret values unless asked.
+fn render_config(config: &config::Config, show_secrets: bool) -> Result<String> {
+    let mut value =
+        serde_yaml_ng::to_value(config).context("failed to render the configuration")?;
+    if !show_secrets {
+        mask_secrets(&mut value, &mut Vec::new());
+    }
+    serde_yaml_ng::to_string(&value).context("failed to render the configuration")
+}
+
+fn mask_secrets(value: &mut serde_yaml_ng::Value, path: &mut Vec<String>) {
+    match value {
+        serde_yaml_ng::Value::Mapping(map) => {
+            for (key, child) in map.iter_mut() {
+                let Some(key) = key.as_str() else { continue };
+                path.push(key.to_string());
+                let dotted = path.join(".");
+                if config::schema::descriptor(&dotted).is_some_and(|entry| entry.secret) {
+                    *child = serde_yaml_ng::Value::String("***".into());
+                } else {
+                    mask_secrets(child, path);
+                }
+                path.pop();
+            }
+        }
+        serde_yaml_ng::Value::Sequence(seq) => {
+            for child in seq.iter_mut() {
+                mask_secrets(child, path);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn init_logging(debug: bool) {
@@ -98,19 +184,15 @@ fn init_logging(debug: bool) {
         .init();
 }
 
-async fn run(config: Arc<config::Config>) -> Result<()> {
-    let prefix = config.server.base_path();
+async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
+    let config = settings.snapshot();
+    let prefix = config.server.base_path().to_string();
     tracing::info!(
         "starting sailplane {} (headscale: {})",
         env!("CARGO_PKG_VERSION"),
         config.headscale.url
     );
-
-    // --- Persistence ---
-    let db_path = config.server.data_path.join("sailplane_persist.db");
-    let db = db::Db::open(&db_path)
-        .with_context(|| format!("failed to open the database at {}", db_path.display()))?;
-    tracing::info!("using database {}", db_path.display());
+    tracing::info!("using database {}", config.server.data_path.display());
 
     // --- Headscale ---
     let headscale = headscale::Headscale::new(
@@ -144,8 +226,20 @@ async fn run(config: Arc<config::Config>) -> Result<()> {
     let live = headscale::LiveStore::new();
     {
         let headscale = headscale.clone();
-        let api_key = config.headscale.api_key.clone();
-        live.spawn_pollers(move || api_key.clone().map(|key| headscale.client(key)));
+        // Read the key and URL from the settings store each tick, so rotating
+        // the API key takes effect without a restart.
+        let settings = settings.clone();
+        live.spawn_pollers(move || {
+            let config = settings.snapshot();
+            // Keep the client pointed at the configured URL, in case it changed
+            // since the last tick.
+            headscale.set_base_url(&config.headscale.url);
+            config
+                .headscale
+                .api_key
+                .clone()
+                .map(|key| headscale.client(key))
+        });
     }
 
     // --- Headscale config file ---
@@ -221,7 +315,7 @@ async fn run(config: Arc<config::Config>) -> Result<()> {
     let ssh = ssh::SshService::new(ssh_config, ssh_disabled_reason);
 
     // --- Auth ---
-    let auth = auth::AuthService::new(db.clone(), config.clone());
+    let auth = auth::AuthService::new(db.clone(), settings.clone());
 
     // --- OIDC ---
     let oidc = match config.oidc.as_ref() {
@@ -252,7 +346,8 @@ async fn run(config: Arc<config::Config>) -> Result<()> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     let state = Arc::new(web::state::AppState {
-        config: config.clone(),
+        settings: settings.clone(),
+        prefix: prefix.clone(),
         db: db.clone(),
         auth,
         headscale,

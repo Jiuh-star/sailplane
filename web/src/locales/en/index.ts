@@ -19,6 +19,7 @@ import nav from './nav'
 import oidc from './oidc'
 import restrictions from './restrictions'
 import settings from './settings'
+import setup from './setup'
 import ssh from './ssh'
 import topology from './topology'
 import users from './users'
@@ -44,4 +45,5 @@ export default {
   audit,
   logs,
   oidc,
+  setup,
 }

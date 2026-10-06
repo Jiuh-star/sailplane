@@ -10,7 +10,10 @@ use super::super::error::{ApiError, ApiResult};
 use super::super::state::{Auth, PrincipalExt, SharedState};
 
 /// Returns the agent status. `GET /api/agent`
-pub async fn status(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn status(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     if !principal.has(Capability::ReadFeature) {
         return Err(ApiError::forbidden(
             "Your account does not have access to the agent settings",
@@ -21,13 +24,14 @@ pub async fn status(State(state): State<SharedState>, Auth(principal): Auth) -> 
 }
 
 /// Forces an immediate host-info refresh. `POST /api/agent/sync`
-pub async fn sync(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn sync(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     principal.require(&[Capability::WriteFeature])?;
 
     if !state.agent.is_enabled() {
-        return Err(ApiError::bad_request(
-            "The Sailplane agent is not enabled",
-        ));
+        return Err(ApiError::bad_request("The Sailplane agent is not enabled"));
     }
 
     let node_keys: Vec<String> = state

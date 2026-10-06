@@ -137,6 +137,27 @@ fn default_true() -> bool {
     true
 }
 
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            host: default_host(),
+            port: default_port(),
+            base_url: None,
+            base_path: default_base_path(),
+            data_path: default_data_path(),
+            info_secret: None,
+            cookie_secret: None,
+            cookie_secret_path: None,
+            cookie_secure: true,
+            cookie_domain: None,
+            cookie_max_age: default_cookie_max_age(),
+            tls_cert_path: None,
+            tls_key_path: None,
+            proxy_auth: None,
+        }
+    }
+}
+
 impl ServerConfig {
     pub(super) fn resolve_secrets(&mut self) -> Result<()> {
         self.cookie_secret = resolve_secret(

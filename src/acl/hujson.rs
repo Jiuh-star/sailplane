@@ -69,8 +69,7 @@ pub fn strip(input: &str) -> Result<String, String> {
                             break;
                         }
                         b'/' if lookahead + 1 < bytes.len()
-                            && (bytes[lookahead + 1] == b'/'
-                                || bytes[lookahead + 1] == b'*') =>
+                            && (bytes[lookahead + 1] == b'/' || bytes[lookahead + 1] == b'*') =>
                         {
                             // A comment follows the comma; skip it and keep
                             // looking for the closing bracket.

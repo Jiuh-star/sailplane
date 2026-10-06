@@ -42,6 +42,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/target/release/sailplane /usr/local/bin/sailplane
 RUN mkdir -p /etc/sailplane /var/lib/sailplane
+# Settings live in the database under this directory. A legacy config file at
+# the path below is imported on first start, then deprecated.
+ENV SAILPLANE_DATA_PATH=/var/lib/sailplane/
 ENV SAILPLANE_CONFIG_PATH=/etc/sailplane/config.yaml
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/sailplane"]

@@ -18,9 +18,9 @@ use super::state::{Auth, PrincipalExt, SharedState};
 fn validate_username(name: &str) -> Result<(), ApiError> {
     let valid = name.len() >= 2
         && name.len() <= 63
-        && name
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.' || c == '_')
+        && name.chars().all(|c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.' || c == '_'
+        })
         && !name.starts_with(['-', '.', '_']);
 
     if valid {
@@ -57,7 +57,10 @@ async fn load_policy(state: &SharedState) -> Option<AclPolicy> {
 }
 
 /// Lists accounts, Headscale users and group membership. `GET /api/users`
-pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn list(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     if !principal.has(Capability::ReadUsers) {
         return Err(ApiError::forbidden(
             "Your account does not have access to users",
@@ -151,8 +154,7 @@ pub async fn create(
     Auth(principal): Auth,
     Json(request): Json<CreateUserRequest>,
 ) -> ApiResult<Json<Value>> {
-    principal
-        .require(&[Capability::WriteUsers])?;
+    principal.require(&[Capability::WriteUsers])?;
 
     let username = request.username.trim().to_lowercase();
     validate_username(&username)?;
@@ -165,7 +167,10 @@ pub async fn create(
         .create_user(
             &username,
             request.email.as_deref().filter(|e| !e.trim().is_empty()),
-            request.display_name.as_deref().filter(|n| !n.trim().is_empty()),
+            request
+                .display_name
+                .as_deref()
+                .filter(|n| !n.trim().is_empty()),
             None,
         )
         .await
@@ -256,8 +261,8 @@ pub async fn update_groups(
         ));
     }
 
-    let mut policy = AclPolicy::parse(&current.policy)
-        .map_err(|err| ApiError::bad_request(err.to_string()))?;
+    let mut policy =
+        AclPolicy::parse(&current.policy).map_err(|err| ApiError::bad_request(err.to_string()))?;
     policy
         .set_user_groups(&name, &request.groups)
         .map_err(|err| ApiError::bad_request(err.to_string()))?;
@@ -378,9 +383,10 @@ pub async fn delete_account(
 
 async fn refresh_users(state: &SharedState) {
     if let Some(client) = state.admin_client()
-        && let Ok(users) = client.list_users().await {
-            state.live.set_users(users).await;
-        }
+        && let Ok(users) = client.list_users().await
+    {
+        state.live.set_users(users).await;
+    }
 }
 
 #[cfg(test)]

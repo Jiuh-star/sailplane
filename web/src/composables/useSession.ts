@@ -43,6 +43,8 @@ const fallbackConfig: ConfigView = {
   agentBackend: 'none',
   debug: false,
   version: '',
+  grantsSupported: true,
+  setupRequired: false,
 }
 
 export function useSession() {
@@ -85,6 +87,9 @@ export function useSession() {
 
   const isApiKeySession = computed(() => session.value?.principal === 'api_key')
 
+  /** True while the deployment still needs first-run onboarding. */
+  const setupRequired = computed(() => config.value.setupRequired)
+
   /** Default landing route for the signed-in principal. */
   const landingRoute = computed(() => {
     if (access.value.ui) return { name: 'machines' }
@@ -101,6 +106,7 @@ export function useSession() {
     config,
     headscale,
     isApiKeySession,
+    setupRequired,
     landingRoute,
     refresh,
     login,

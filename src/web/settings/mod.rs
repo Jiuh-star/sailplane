@@ -10,6 +10,7 @@ pub mod dns;
 pub mod logs;
 pub mod oidc;
 pub mod restrictions;
+pub mod sailplane;
 
 use super::state::SharedState;
 

@@ -8,8 +8,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::auth::session::{
-    CookieOptions, OIDC_STATE_COOKIE, SESSION_COOKIE,
-    encode_cookie, read_cookie,
+    CookieOptions, OIDC_STATE_COOKIE, SESSION_COOKIE, encode_cookie, read_cookie,
 };
 use crate::auth::{CookiePayload, OidcTransaction, Role};
 
@@ -60,27 +59,56 @@ pub async fn session(
 /// Configuration flags the UI branches on.
 fn config_view(state: &AppState) -> Value {
     let oidc_enabled = state.oidc.is_some();
+    let config = state.config();
     json!({
         "prefix": state.prefix(),
         // The address machines register with, not Sailplane's own URL.
         "baseUrl": state.headscale_public_base(),
-        "headscaleUrl": state.config.headscale.url,
+        "headscaleUrl": config.headscale.url,
+        "grantsSupported": state.headscale.capabilities().grants_supported,
         "configAvailable": state.hsconfig.readable(),
         "configWritable": state.hsconfig.writable(),
         "oidcEnabled": oidc_enabled,
-        "apiKeyLoginDisabled": state
-            .config
+        "apiKeyLoginDisabled": config
             .oidc
             .as_ref()
             .map(|oidc| oidc.disable_api_key_login)
             .unwrap_or(false),
-        "cookieSecure": state.config.server.cookie_secure,
+        "cookieSecure": config.server.cookie_secure,
         "integration": state.integration.name(),
         "agentEnabled": state.agent.is_enabled(),
         "agentBackend": state.agent.name(),
-        "debug": state.config.debug_logging(),
+        "debug": config.debug_logging(),
         "version": env!("CARGO_PKG_VERSION"),
+        // The first-run wizard shows until onboarding is completed and an
+        // account exists. A deployment that logs in through OIDC skips it.
+        "setupRequired": setup_required(state),
     })
+}
+
+/// True while the first-run wizard should be shown: a fresh deployment with no
+/// account, no single sign-on, and no Headscale API key yet.
+pub(super) fn setup_required(state: &AppState) -> bool {
+    let onboarded = state
+        .db
+        .get_setting("meta.onboarding_completed_at")
+        .ok()
+        .flatten()
+        .is_some();
+    if onboarded || state.oidc.is_some() {
+        return false;
+    }
+    // A deployment that already has a Headscale API key (imported from a legacy
+    // config file or set in the environment) is configured; the wizard would
+    // only re-ask for values it already has.
+    if state.config().headscale.api_key.is_some() {
+        return false;
+    }
+    state
+        .db
+        .count_users()
+        .map(|count| count == 0)
+        .unwrap_or(false)
 }
 
 #[derive(Deserialize)]
@@ -96,7 +124,7 @@ pub async fn login(
     // The SPA hides the form when the deployment is SSO-only; the API has to
     // refuse as well, or the policy is only a UI preference.
     if state
-        .config
+        .config()
         .oidc
         .as_ref()
         .is_some_and(|oidc| oidc.disable_api_key_login)
@@ -108,7 +136,9 @@ pub async fn login(
 
     let candidate = request.api_key.trim();
     if candidate.is_empty() {
-        return Err(ApiError::bad_request("Enter a Headscale API key to sign in"));
+        return Err(ApiError::bad_request(
+            "Enter a Headscale API key to sign in",
+        ));
     }
 
     let validation = state
@@ -134,17 +164,14 @@ pub async fn login(
             api_key: Some(candidate.to_string()),
             profile: None,
         },
-        state.config.cookie_secret(),
+        &state.cookie_secret(),
     )
     .map_err(ApiError::Internal)?;
 
     let options = state.auth.cookie_options();
     Ok((
         StatusCode::OK,
-        [(
-            header::SET_COOKIE,
-            options.render(SESSION_COOKIE, &cookie),
-        )],
+        [(header::SET_COOKIE, options.render(SESSION_COOKIE, &cookie))],
         Json(json!({
             "ok": true,
             "user": { "name": validation.display_name, "role": "api_key" },
@@ -176,26 +203,24 @@ pub async fn logout(
     // RP-initiated logout: hand the client the provider URL so the browser can
     // complete the round trip.
     if let (Some(oidc), Some(principal)) = (state.oidc.as_ref(), principal.as_ref())
-        && let Some(id_token) = principal.id_token() {
-            let post_logout = state
-                .config
-                .oidc
-                .as_ref()
-                .map(|config| config.post_logout_redirect(&state.public_base(), state.prefix()))
-                .unwrap_or_else(|| format!("{}{}/login?s=logout", state.public_base(), state.prefix()));
+        && let Some(id_token) = principal.id_token()
+    {
+        let post_logout = state
+            .config()
+            .oidc
+            .as_ref()
+            .map(|config| config.post_logout_redirect(&state.public_base(), state.prefix()))
+            .unwrap_or_else(|| format!("{}{}/login?s=logout", state.public_base(), state.prefix()));
 
-            if let Some(url) = oidc.end_session_url(Some(id_token), &post_logout).await {
-                body["redirect"] = Value::String(url);
-            }
+        if let Some(url) = oidc.end_session_url(Some(id_token), &post_logout).await {
+            body["redirect"] = Value::String(url);
         }
+    }
 
     let options = state.auth.cookie_options();
     Ok((
         StatusCode::OK,
-        [(
-            header::SET_COOKIE,
-            options.render_cleared(SESSION_COOKIE),
-        )],
+        [(header::SET_COOKIE, options.render_cleared(SESSION_COOKIE))],
         Json(body),
     )
         .into_response())
@@ -207,7 +232,9 @@ pub async fn oidc_start(
     MaybeAuth(principal): MaybeAuth,
 ) -> Result<Response, ApiError> {
     if principal.is_some() {
-        return Ok(Redirect::to(&format!("{}{}/", state.public_base(), state.prefix())).into_response());
+        return Ok(
+            Redirect::to(&format!("{}{}/", state.public_base(), state.prefix())).into_response(),
+        );
     }
 
     let Some(oidc) = state.oidc.clone() else {
@@ -231,7 +258,10 @@ pub async fn oidc_start(
         StatusCode::FOUND,
         [
             (header::LOCATION, url),
-            (header::SET_COOKIE, options.render(OIDC_STATE_COOKIE, &value)),
+            (
+                header::SET_COOKIE,
+                options.render(OIDC_STATE_COOKIE, &value),
+            ),
         ],
         (),
     )
@@ -244,7 +274,8 @@ pub async fn oidc_callback(
     headers: HeaderMap,
     axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    let login_url = |code: &str| format!("{}{}/login?s={code}", state.public_base(), state.prefix());
+    let login_url =
+        |code: &str| format!("{}{}/login?s={code}", state.public_base(), state.prefix());
 
     if !query.contains_key("code") && !query.contains_key("state") {
         return Ok(Redirect::to(&login_url("error_no_query")).into_response());
@@ -289,7 +320,7 @@ pub async fn oidc_callback(
     };
 
     let initial_role = state
-        .config
+        .config()
         .oidc
         .as_ref()
         .map(|config| Role::parse(&config.default_role))
@@ -311,13 +342,17 @@ pub async fn oidc_callback(
     // Auto-link to the matching Headscale user so machines and keys resolve.
     if user.headscale_user_id.is_none()
         && let Some(client) = state.admin_client()
-            && let Ok(headscale_users) = client.list_users().await {
-                let _ = state.auth.auto_link_headscale_user(&user, &headscale_users).await;
-            }
+        && let Ok(headscale_users) = client.list_users().await
+    {
+        let _ = state
+            .auth
+            .auto_link_headscale_user(&user, &headscale_users)
+            .await;
+    }
 
     // Only persist the ID token when it is needed for RP-initiated logout.
     let store_id_token = state
-        .config
+        .config()
         .oidc
         .as_ref()
         .map(|config| config.use_end_session)
@@ -328,7 +363,7 @@ pub async fn oidc_callback(
         .create_oidc_session(
             &user.id,
             store_id_token.then_some(profile.id_token.as_str()),
-            chrono::Duration::seconds(state.config.server.cookie_max_age),
+            chrono::Duration::seconds(state.config().server.cookie_max_age),
         )
         .map_err(ApiError::Internal)?;
 
@@ -338,7 +373,7 @@ pub async fn oidc_callback(
             api_key: None,
             profile: None,
         },
-        state.config.cookie_secret(),
+        &state.cookie_secret(),
     )
     .map_err(ApiError::Internal)?;
 
@@ -377,10 +412,10 @@ fn oidc_redirect_response(
 /// the original cookie in the browser.
 fn oidc_state_options(state: &AppState) -> CookieOptions {
     CookieOptions {
-        secure: state.config.server.cookie_secure,
+        secure: state.config().server.cookie_secure,
         http_only: true,
         max_age_seconds: 1800,
-        domain: state.config.server.cookie_domain.clone(),
+        domain: state.config().server.cookie_domain.clone(),
         path: format!("{}/oidc/callback", state.prefix()),
         same_site: crate::auth::SameSite::Lax,
     }

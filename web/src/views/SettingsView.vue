@@ -10,6 +10,7 @@ import {
   KeyRound,
   KeySquare,
   ScrollText,
+  Settings,
   ShieldCheck,
   Waypoints,
 } from '@lucide/vue'
@@ -86,6 +87,14 @@ const sections = computed(() =>
       icon: FileKey,
       title: t('settings.sections.apiKeys.title'),
       description: t('settings.sections.apiKeys.description'),
+    },
+    {
+      // Sailplane's own configuration, which only the owner may edit.
+      show: access.value.owner,
+      to: { name: 'deployment' },
+      icon: Settings,
+      title: t('settings.sections.deployment.title'),
+      description: t('settings.sections.deployment.description'),
     },
   ].filter((section) => section.show),
 )

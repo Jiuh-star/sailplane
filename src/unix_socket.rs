@@ -28,9 +28,7 @@ impl SocketResponse {
 
     /// Returns the body as text for error messages.
     pub fn text(&self) -> String {
-        String::from_utf8_lossy(&self.body)
-            .trim()
-            .to_string()
+        String::from_utf8_lossy(&self.body).trim().to_string()
     }
 }
 /// Sends one HTTP request over `socket`.
@@ -65,13 +63,10 @@ pub async fn request_from(
         .body(Full::new(Bytes::from(body.unwrap_or_default())))
         .context("failed to build the request")?;
 
-    let response = client.request(request).await.with_context(|| {
-        format!(
-            "failed to reach {} over {}",
-            path,
-            socket.display()
-        )
-    })?;
+    let response = client
+        .request(request)
+        .await
+        .with_context(|| format!("failed to reach {} over {}", path, socket.display()))?;
 
     let status = response.status().as_u16();
     let bytes = response

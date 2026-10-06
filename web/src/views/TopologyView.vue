@@ -18,6 +18,12 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { errorMessage } from '@/composables/useToast'
 import { api, type TopologyResponse } from '@/lib/api'
+import {
+  parseApproverExitNodes,
+  parseApproverRoutes,
+  parseNodeAttrs,
+  parsePostures,
+} from '@/lib/policy'
 
 const { t } = useI18n()
 
@@ -37,6 +43,16 @@ onMounted(async () => {
 
 const aclEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'acl') ?? [])
 const sshEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'ssh') ?? [])
+const grantEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'grant') ?? [])
+
+/** The badge text and variant for an edge kind, shared by the list and legend. */
+function edgeKindLabel(kind: 'acl' | 'grant' | 'ssh') {
+  return kind === 'ssh'
+    ? t('topology.graph.ssh')
+    : kind === 'grant'
+      ? t('topology.graph.grant')
+      : t('topology.graph.acl')
+}
 
 /** Routes nobody else advertises: losing that machine loses the network. */
 const soleRoutes = computed(() => data.value?.routes.filter((route) => route.sole) ?? [])
@@ -51,6 +67,33 @@ const bySource = computed(() => {
   }
   return [...groups.entries()]
 })
+
+// --- Policy extras ---
+
+const approverRoutes = computed(() => parseApproverRoutes(data.value?.policy?.autoApprovers))
+const approverExitNodes = computed(() => parseApproverExitNodes(data.value?.policy?.autoApprovers))
+const policyNodeAttrs = computed(() => parseNodeAttrs(data.value?.policy?.nodeAttrs))
+const policyPostures = computed(() => parsePostures(data.value?.policy?.postures))
+
+const testCount = computed(() =>
+  Array.isArray(data.value?.policy?.tests) ? data.value!.policy.tests!.length : 0
+)
+const sshTestCount = computed(() =>
+  Array.isArray(data.value?.policy?.sshTests) ? data.value!.policy.sshTests!.length : 0
+)
+const randomizeClientPort = computed(() => data.value?.policy?.randomizeClientPort === true)
+
+/** True when the policy block has anything worth a card. */
+const hasPolicyExtras = computed(
+  () =>
+    approverRoutes.value.length > 0 ||
+    approverExitNodes.value.length > 0 ||
+    policyNodeAttrs.value.length > 0 ||
+    policyPostures.value.length > 0 ||
+    testCount.value > 0 ||
+    sshTestCount.value > 0 ||
+    randomizeClientPort.value
+)
 </script>
 
 <template>
@@ -120,8 +163,11 @@ const bySource = computed(() => {
                   <span class="text-muted-foreground text-xs">
                     → <code>{{ edge.dst }}</code>:{{ edge.ports }}
                   </span>
-                  <Badge class="ml-2" :variant="edge.kind === 'ssh' ? 'info' : 'secondary'">
-                    {{ edge.kind === 'ssh' ? t('topology.graph.ssh') : t('topology.graph.acl') }}
+                  <Badge
+                    class="ml-2"
+                    :variant="edge.kind === 'ssh' ? 'info' : edge.kind === 'grant' ? 'warning' : 'secondary'"
+                  >
+                    {{ edgeKindLabel(edge.kind) }}
                   </Badge>
                 </div>
               </div>
@@ -129,7 +175,87 @@ const bySource = computed(() => {
 
             <div class="text-muted-foreground mt-3 flex flex-wrap gap-4 text-xs">
               <span>{{ t('topology.graph.legendAcl', { count: aclEdges.length }) }}</span>
+              <span>{{ t('topology.graph.legendGrant', { count: grantEdges.length }) }}</span>
               <span>{{ t('topology.graph.legendSsh', { count: sshEdges.length }) }}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card v-if="hasPolicyExtras">
+          <CardHeader>
+            <CardTitle class="text-base">{{ t('topology.policy.title') }}</CardTitle>
+            <p class="text-muted-foreground text-sm">{{ t('topology.policy.description') }}</p>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div v-if="approverRoutes.length || approverExitNodes.length" class="space-y-2">
+              <p class="text-sm font-medium">{{ t('topology.policy.autoApprovers') }}</p>
+              <div class="space-y-2">
+                <div
+                  v-for="[cidr, selectors] in approverRoutes"
+                  :key="cidr"
+                  class="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-sm"
+                >
+                  <code class="text-xs font-medium">{{ cidr }}</code>
+                  <span class="text-muted-foreground">←</span>
+                  <Badge v-for="selector in selectors" :key="selector" variant="secondary">
+                    {{ selector }}
+                  </Badge>
+                </div>
+                <div
+                  v-if="approverExitNodes.length"
+                  class="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-sm"
+                >
+                  <span class="text-xs font-medium">{{ t('topology.policy.exitNodes') }}</span>
+                  <Badge v-for="selector in approverExitNodes" :key="selector" variant="secondary">
+                    {{ selector }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="policyNodeAttrs.length" class="space-y-2">
+              <p class="text-sm font-medium">{{ t('topology.policy.nodeAttrs') }}</p>
+              <div class="space-y-2">
+                <div
+                  v-for="(entry, index) in policyNodeAttrs"
+                  :key="index"
+                  class="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-sm"
+                >
+                  <Badge v-for="target in entry.target" :key="target" variant="secondary">
+                    {{ target }}
+                  </Badge>
+                  <span class="text-muted-foreground">→</span>
+                  <Badge v-for="attr in entry.attr" :key="attr" variant="outline">{{ attr }}</Badge>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="policyPostures.length" class="space-y-2">
+              <p class="text-sm font-medium">{{ t('topology.policy.postures') }}</p>
+              <div class="space-y-2">
+                <div
+                  v-for="[name, conditions] in policyPostures"
+                  :key="name"
+                  class="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-sm"
+                >
+                  <span class="font-mono text-xs font-medium">{{ name }}</span>
+                  <Badge v-for="condition in conditions" :key="condition" variant="outline">
+                    {{ condition }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <Badge v-if="testCount" variant="secondary">
+                {{ t('topology.policy.tests', { count: testCount }) }}
+              </Badge>
+              <Badge v-if="sshTestCount" variant="secondary">
+                {{ t('topology.policy.sshTests', { count: sshTestCount }) }}
+              </Badge>
+              <Badge v-if="randomizeClientPort" variant="outline">
+                {{ t('topology.policy.randomizeClientPort') }}
+              </Badge>
             </div>
           </CardContent>
         </Card>

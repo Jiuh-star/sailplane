@@ -36,7 +36,8 @@ impl Integration {
         &self,
         tail: usize,
         follow: bool,
-    ) -> Result<futures_util::stream::BoxStream<'static, Result<hyper::body::Bytes, std::io::Error>>> {
+    ) -> Result<futures_util::stream::BoxStream<'static, Result<hyper::body::Bytes, std::io::Error>>>
+    {
         match self {
             Self::Docker(docker) => docker.log_stream(tail, follow).await,
             Self::None => anyhow::bail!(

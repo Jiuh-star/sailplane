@@ -11,8 +11,8 @@ use axum::Json;
 use axum::extract::State;
 use serde_json::{Value, json};
 
-use crate::acl::eval::{self, MachineRef};
 use crate::acl::Policy as AclPolicy;
+use crate::acl::eval::{self, MachineRef};
 use crate::auth::Capability;
 
 use super::error::{ApiError, ApiResult};
@@ -32,7 +32,7 @@ struct Identity {
 #[derive(serde::Serialize)]
 struct Edge {
     rule: usize,
-    /// `acl` or `ssh`.
+    /// `acl`, `grant` or `ssh`.
     kind: &'static str,
     action: String,
     src: String,
@@ -67,32 +67,32 @@ struct RouteAdvertiser {
 }
 
 /// Returns the policy graph, routes and relays. `GET /api/topology`
-pub async fn get(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn get(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     principal.require(&[Capability::ReadMachines])?;
 
     let client = state
         .admin_client()
         .ok_or_else(|| ApiError::internal("no Headscale API key is configured"))?;
     let (text, _, _) = super::acl::stored_policy(&client).await?;
-    let policy = AclPolicy::parse(&text)
-        .map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
+    let policy =
+        AclPolicy::parse(&text).map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
 
     let nodes = state.live.nodes().await;
-    let machines: Vec<MachineRef> = nodes
-        .data
-        .iter()
-        .map(MachineRef::from_machine)
-        .collect();
+    let machines: Vec<MachineRef> = nodes.data.iter().map(MachineRef::from_machine).collect();
 
     let mut identities: BTreeMap<String, Identity> = BTreeMap::new();
     let mut edges = Vec::new();
+    let ctx = state.eval_context().await;
 
     for (index, rule) in policy.acls.iter().enumerate() {
         for src in &rule.src {
             for dst in &rule.dst {
                 let (host, _) = eval::split_destination(dst);
-                let source = describe(&policy, &machines, src, &mut identities);
-                let target = describe(&policy, &machines, &host, &mut identities);
+                let source = describe(&policy, &machines, src, &ctx, &mut identities);
+                let target = describe(&policy, &machines, &host, &ctx, &mut identities);
                 edges.push(Edge {
                     rule: index,
                     kind: "acl",
@@ -108,12 +108,37 @@ pub async fn get(State(state): State<SharedState>, Auth(principal): Auth) -> Api
         }
     }
 
+    for (index, rule) in policy.grant_rules().iter().enumerate() {
+        for src in &rule.src {
+            for dst in &rule.dst {
+                let (host, _) = eval::split_destination(dst);
+                let source = describe(&policy, &machines, src, &ctx, &mut identities);
+                let target = describe(&policy, &machines, &host, &ctx, &mut identities);
+                edges.push(Edge {
+                    rule: index,
+                    kind: "grant",
+                    action: "accept".into(),
+                    src: src.clone(),
+                    dst: host.clone(),
+                    ports: if rule.ip.is_empty() {
+                        "*".into()
+                    } else {
+                        rule.ip.join(", ")
+                    },
+                    src_machines: source,
+                    dst_machines: target,
+                    users: Vec::new(),
+                });
+            }
+        }
+    }
+
     for (index, rule) in policy.ssh.iter().enumerate() {
         for src in &rule.src {
             for dst in &rule.dst {
                 let (host, _) = eval::split_destination(dst);
-                let source = describe(&policy, &machines, src, &mut identities);
-                let target = describe(&policy, &machines, &host, &mut identities);
+                let source = describe(&policy, &machines, src, &ctx, &mut identities);
+                let target = describe(&policy, &machines, &host, &ctx, &mut identities);
                 edges.push(Edge {
                     rule: index,
                     kind: "ssh",
@@ -134,12 +159,27 @@ pub async fn get(State(state): State<SharedState>, Auth(principal): Auth) -> Api
         "edges": edges,
         "routes": routes(&nodes.data),
         "relays": relays(&state, &nodes.data).await,
+        "policy": policy_extras(&policy),
         "totals": {
             "machines": machines.len(),
             "online": nodes.data.iter().filter(|node| node.online).count(),
-            "rules": policy.acls.len() + policy.ssh.len(),
+            "rules": policy.acls.len() + policy.grant_rules().len() + policy.ssh.len(),
         },
     })))
+}
+
+/// The policy keys that do not form edges: automatic approval, node
+/// attributes, postures and the policy's own tests. Passed through as parsed
+/// values so the UI can render them without a second model.
+fn policy_extras(policy: &AclPolicy) -> Value {
+    json!({
+        "autoApprovers": policy.auto_approvers,
+        "nodeAttrs": policy.node_attrs,
+        "postures": policy.postures,
+        "tests": policy.tests,
+        "sshTests": policy.ssh_tests,
+        "randomizeClientPort": policy.randomize_client_port,
+    })
 }
 
 /// Records an identity and returns how many machines it covers.
@@ -147,10 +187,12 @@ fn describe(
     policy: &AclPolicy,
     machines: &[MachineRef],
     selector: &str,
+    ctx: &eval::EvalContext,
     identities: &mut BTreeMap<String, Identity>,
 ) -> usize {
     let selector = selector.trim();
-    let matched = eval::expand(policy, machines, selector, &mut Vec::new());
+    let mut notes = Vec::new();
+    let matched = eval::expand(policy, machines, selector, &mut notes, ctx, &[]);
 
     identities
         .entry(selector.to_string())
@@ -180,9 +222,9 @@ fn routes(nodes: &[crate::headscale::Machine]) -> Vec<Route> {
             .chain(node.approved_routes.iter())
             .collect::<BTreeSet<_>>()
         {
-            let entry = by_cidr.entry(cidr.clone()).or_insert_with(|| {
-                (approved.contains(cidr), Vec::new())
-            });
+            let entry = by_cidr
+                .entry(cidr.clone())
+                .or_insert_with(|| (approved.contains(cidr), Vec::new()));
             entry.1.push(RouteAdvertiser {
                 id: node.id.clone(),
                 name: node.given_name.clone(),
@@ -195,7 +237,7 @@ fn routes(nodes: &[crate::headscale::Machine]) -> Vec<Route> {
         .into_iter()
         .map(|(cidr, (approved, advertisers))| Route {
             sole: advertisers.len() == 1,
-            exit_node: cidr == "0.0.0.0/0" || cidr == "::/0",
+            exit_node: crate::headscale::Machine::is_exit_route(&cidr),
             cidr,
             approved,
             advertisers,
@@ -215,7 +257,11 @@ async fn relays(state: &SharedState, nodes: &[crate::headscale::Machine]) -> Vec
             .and_then(Value::as_i64);
 
         by_region
-            .entry(region.map(|id| id.to_string()).unwrap_or_else(|| "unknown".into()))
+            .entry(
+                region
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unknown".into()),
+            )
             .or_default()
             .push(json!({
                 "id": node.id,

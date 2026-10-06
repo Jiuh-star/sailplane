@@ -43,7 +43,10 @@ fn owned_keys(keys: Vec<PreAuthKey>, user_id: Option<&str>) -> Vec<PreAuthKey> {
 }
 
 /// Lists pre-auth keys. `GET /api/auth-keys`
-pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> ApiResult<Json<Value>> {
+pub async fn list(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
     if !principal.has(Capability::GenerateAuthKeys)
         && !principal.has(Capability::GenerateOwnAuthKeys)
     {
@@ -61,24 +64,23 @@ pub async fn list(State(state): State<SharedState>, Auth(principal): Auth) -> Ap
 
     // 0.28+ lists every key in one call; older versions need one request per
     // user. A user whose keys fail to load is returned in `missing`.
-    let (keys, missing): (Vec<PreAuthKey>, Vec<String>) = if capabilities
-        .pre_auth_keys_have_stable_ids
-    {
-        match client.list_pre_auth_keys().await {
-            Ok(keys) => (keys, Vec::new()),
-            Err(err) => return Err(ApiError::from(err)),
-        }
-    } else {
-        let mut all = Vec::new();
-        let mut missing = Vec::new();
-        for user in users.data.iter() {
-            match client.list_pre_auth_keys_for_user(&user.id).await {
-                Ok(mut keys) => all.append(&mut keys),
-                Err(_) => missing.push(user.name.clone()),
+    let (keys, missing): (Vec<PreAuthKey>, Vec<String>) =
+        if capabilities.pre_auth_keys_have_stable_ids {
+            match client.list_pre_auth_keys().await {
+                Ok(keys) => (keys, Vec::new()),
+                Err(err) => return Err(ApiError::from(err)),
             }
-        }
-        (all, missing)
-    };
+        } else {
+            let mut all = Vec::new();
+            let mut missing = Vec::new();
+            for user in users.data.iter() {
+                match client.list_pre_auth_keys_for_user(&user.id).await {
+                    Ok(mut keys) => all.append(&mut keys),
+                    Err(_) => missing.push(user.name.clone()),
+                }
+            }
+            (all, missing)
+        };
 
     // A self-service principal reaches the list through the admin client,
     // which returns every user's keys. Filter here: a pre-auth key is a
