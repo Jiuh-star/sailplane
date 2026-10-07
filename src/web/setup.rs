@@ -2,9 +2,9 @@
 //!
 //! These endpoints exist only while the deployment is unconfigured: no account,
 //! no single sign-on, and no Headscale API key. They are reachable without
-//! authentication, because there is nothing to authenticate against yet, so
-//! they are guarded by either a loopback peer or a one-time token written beside
-//! the database and printed to the log.
+//! authentication, because there is nothing to authenticate against yet. A
+//! loopback peer, or a one-time token written beside the database and printed
+//! to the log, guards them.
 
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -19,12 +19,12 @@ use super::error::{ApiError, ApiResult};
 use super::state::SharedState;
 
 /// Failed token attempts since start. The token is 32 random characters, so
-/// guessing it is already hopeless; this only bounds how long an attacker (or a
-/// very persistent typo) can keep hammering the endpoint.
+/// guessing it is already hopeless. This only bounds how long an attacker (or a
+/// very persistent typo) can hammer the endpoint.
 static FAILED_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 const MAX_FAILED_ATTEMPTS: u32 = 10;
 
-/// The peer address, when the server inserted one. Never rejects, so an
+/// The peer address, when the server inserted one. It never rejects, so an
 /// onboarding call works even where connect info is unavailable.
 pub struct Peer(pub Option<IpAddr>);
 
@@ -85,7 +85,7 @@ pub async fn test_headscale(
         .map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
     let client = headscale.client(request.api_key.clone());
 
-    // Probe the server and prove the key at the same time: a valid key can list
+    // Probe the server and prove the key at the same time. A valid key can list
     // nodes, which catches a wrong key before it is saved.
     let (version, nodes) = tokio::join!(headscale.probe_version(), client.list_nodes());
     let version = version
@@ -135,7 +135,7 @@ pub async fn complete(
         .reload_settings()
         .map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
 
-    // The token is spent; do not leave it lying on disk. `data_path` is where
+    // The token is spent. Do not leave it lying on disk. `data_path` is where
     // it was written at boot, which an environment variable can override.
     if let Some(directory) = state.settings.data_path() {
         let _ = std::fs::remove_file(directory.join(crate::config::store::SETUP_TOKEN_FILE));
@@ -154,8 +154,8 @@ fn save(state: &SharedState, key: &str, value: Value) -> Result<(), ApiError> {
         .map_err(ApiError::Internal)
 }
 
-/// Allows the setup call while onboarding is pending, from a loopback peer or
-/// with the one-time token.
+/// Lets the setup call continue while onboarding is pending, from a loopback
+/// peer or with the one-time token.
 fn authorize(
     state: &SharedState,
     peer: Option<IpAddr>,
@@ -171,7 +171,7 @@ fn authorize(
 
     if FAILED_ATTEMPTS.load(Ordering::Relaxed) >= MAX_FAILED_ATTEMPTS {
         return Err(ApiError::forbidden(
-            "Too many failed setup attempts; continue from localhost or restart Sailplane",
+            "Too many failed setup attempts. Continue from localhost or restart Sailplane",
         ));
     }
 

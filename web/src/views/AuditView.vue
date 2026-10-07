@@ -2,17 +2,24 @@
 /**
  * The audit log: every state-changing request Sailplane handled. Headscale
  * keeps no history, so this is the only record of a rename, a revoke, or a
- * policy rewrite. Failed attempts are included.
+ * policy rewrite. The log includes failed attempts.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, LoaderCircle, RefreshCw } from '@lucide/vue'
+import { ArrowLeft, LoaderCircle, RefreshCw, ChevronLeft, ChevronRight } from '@lucide/vue'
 
 import EmptyState from '@/components/shared/EmptyState.vue'
 import PageHeader from '@/components/shared/PageHeader.vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -30,14 +37,19 @@ import { api, type AuditEntry } from '@/lib/api'
 const { t } = useI18n()
 
 const entries = ref<AuditEntry[]>([])
-const next = ref<number | null>(null)
+const total = ref(0)
+const page = ref(1)
+const pages = ref(1)
+const perPage = ref(50)
 const loading = ref(true)
-const loadingMore = ref(false)
 const failure = ref<string | null>(null)
+
+/** The page-size choices offered in the footer. */
+const pageSizes = [25, 50, 100, 200]
 
 /**
  * The endpoint without the mount prefix. The operator chooses the prefix, so
- * its length cannot be assumed.
+ * the code cannot assume its length.
  */
 function action(path: string): string {
   const marker = path.indexOf('/api/')
@@ -53,10 +65,14 @@ function tone(status: number): 'success' | 'warning' | 'destructive' {
 const failed = computed(() => entries.value.filter((entry) => entry.status >= 400).length)
 
 async function load() {
+  loading.value = true
   try {
-    const response = await api.audit.list()
+    const response = await api.audit.list(page.value, perPage.value)
     entries.value = response.entries
-    next.value = response.next
+    total.value = response.total
+    // The server clamps the page when entries were trimmed since the last load.
+    page.value = response.page
+    pages.value = response.pages
     failure.value = null
   } catch (err) {
     failure.value = errorMessage(err)
@@ -65,19 +81,18 @@ async function load() {
   }
 }
 
-async function loadMore() {
-  if (next.value === null || loadingMore.value) return
-  loadingMore.value = true
-  try {
-    const response = await api.audit.list(next.value)
-    entries.value = [...entries.value, ...response.entries]
-    next.value = response.next
-  } catch (err) {
-    failure.value = errorMessage(err)
-  } finally {
-    loadingMore.value = false
-  }
+function goTo(target: number) {
+  const clamped = Math.min(Math.max(target, 1), pages.value)
+  if (clamped === page.value) return
+  page.value = clamped
+  load()
 }
+
+// A new page size reflows the row boundaries, so start again from the top.
+watch(perPage, () => {
+  page.value = 1
+  load()
+})
 
 onMounted(load)
 </script>
@@ -109,7 +124,7 @@ onMounted(load)
 
     <template v-else>
       <div class="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{{ t('audit.count', { count: entries.length }) }}</Badge>
+        <Badge variant="secondary">{{ t('audit.count', { count: total }) }}</Badge>
         <Badge v-if="failed" variant="warning">
           {{ t('audit.failedCount', { count: failed }) }}
         </Badge>
@@ -159,11 +174,44 @@ onMounted(load)
         </Table>
       </div>
 
-      <div v-if="next !== null" class="flex justify-center">
-        <Button variant="outline" :disabled="loadingMore" @click="loadMore">
-          <LoaderCircle v-if="loadingMore" class="animate-spin" />
-          {{ t('audit.loadMore') }}
-        </Button>
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <p class="text-muted-foreground text-sm">
+          {{ t('common.shownOf', { shown: entries.length, total }) }}
+        </p>
+
+        <div class="flex items-center gap-2">
+          <span class="text-muted-foreground text-sm">{{ t('audit.rowsPerPage') }}</span>
+          <Select v-model="perPage">
+            <SelectTrigger class="w-20" :aria-label="t('audit.rowsPerPage')">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="size in pageSizes" :key="size" :value="size">{{ size }}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            :disabled="page <= 1 || loading"
+            :aria-label="t('audit.previous')"
+            @click="goTo(page - 1)"
+          >
+            <ChevronLeft />
+          </Button>
+          <span class="text-sm tabular-nums">{{ t('audit.pageOf', { page, pages }) }}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            :disabled="page >= pages || loading"
+            :aria-label="t('audit.next')"
+            @click="goTo(page + 1)"
+          >
+            <ChevronRight />
+          </Button>
+        </div>
       </div>
     </template>
   </div>

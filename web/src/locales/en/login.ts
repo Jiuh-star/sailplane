@@ -11,7 +11,7 @@ export default {
   apiKeyHint: 'Create one with {command}.',
   couldNotSignIn: 'Could not sign in',
   signedOutTitle: 'Signed out',
-  signedOutNotice: 'You have been signed out.',
+  signedOutNotice: 'You are signed out.',
   signInProblemTitle: 'Sign-in problem',
   insecureCookies: {
     title: 'Secure cookies over plain HTTP',
@@ -26,8 +26,8 @@ export default {
     discoveryFailed:
       'Sailplane cannot reach the OpenID Connect discovery document. Single sign-on stays unavailable until the provider responds.',
     missingEndpoints:
-      'The OpenID Connect provider is missing required endpoints (authorization, token or JWKS).',
-    invalidApiKey: 'Single sign-on requires a Headscale API key to link accounts.',
+      'The OpenID Connect provider is missing necessary endpoints (authorization, token or JWKS).',
+    invalidApiKey: 'To link accounts, single sign-on must have a Headscale API key.',
     notConfigured: 'Single sign-on is not configured.',
   },
 }

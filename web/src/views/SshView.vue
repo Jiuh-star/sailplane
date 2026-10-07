@@ -1,32 +1,52 @@
 <script setup lang="ts">
 /**
- * Browser SSH terminal. The server owns the SSH connection (see `crate::ssh`);
- * this view moves bytes between an xterm instance and a WebSocket. Binary
- * frames carry terminal bytes, text frames carry JSON control messages.
+ * Browser SSH terminal. The server owns the SSH connection (see `crate::ssh`).
+ * This view moves bytes between an xterm instance and a WebSocket. Binary
+ * frames carry terminal bytes, and text frames carry JSON control messages.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, LoaderCircle, RotateCw, TriangleAlert } from '@lucide/vue'
+import { ArrowLeft, Info, LoaderCircle, RotateCw, TriangleAlert } from '@lucide/vue'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTheme } from '@/composables/useTheme'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const { resolved: colorScheme } = useTheme()
 
 type Status = 'loading' | 'prompt' | 'connecting' | 'ready' | 'closed' | 'error'
+
+/** Why a session cannot start. Mirrors the server's `reasonCode`. */
+type ReasonCode = 'disabled' | 'proxy' | 'version' | 'offline' | 'no_ipv4'
 
 interface SshInfo {
   machine: { id: string; name: string; online: boolean; ipv4: string | null }
   available: boolean
+  enabled: boolean
+  reasonCode: ReasonCode | null
   reason: string | null
   defaultUser: string | null
   port: number
   hostKeyVerified: boolean
+}
+
+/**
+ * xterm cannot read CSS variables, so the code chooses its palette in JS from
+ * the resolved theme. Both keep the terminal legible on the page it sits on.
+ */
+const TERMINAL_THEMES = {
+  dark: { background: '#0b0b0f', foreground: '#e5e5e5' },
+  light: { background: '#ffffff', foreground: '#1f2937' },
+} as const
+
+function terminalTheme() {
+  return TERMINAL_THEMES[colorScheme.value]
 }
 
 const info = ref<SshInfo | null>(null)
@@ -47,7 +67,23 @@ function resolve(path: string): URL {
   return new URL(path.replace(/^\//, ''), base)
 }
 
-onMounted(async () => {
+/** Localized, actionable guidance for the reason a session cannot start. */
+const guidance = computed(() =>
+  info.value?.reasonCode ? t(`ssh.enable.${info.value.reasonCode}`) : null,
+)
+
+// When the theme changes mid-session, keep the terminal palette in step.
+watch(colorScheme, () => {
+  if (term) term.options.theme = terminalTheme()
+})
+
+/**
+ * Fetches the data for the session and starts it. A retry re-fetches too, so
+ * the view picks up a setting changed after the page loaded (SSH enabled,
+ * proxy started) without a reload.
+ */
+async function load() {
+  failure.value = null
   try {
     const response = await fetch(resolve(`api/ssh/${machineId.value}`), {
       credentials: 'same-origin',
@@ -71,7 +107,9 @@ onMounted(async () => {
     status.value = 'error'
     failure.value = err instanceof Error ? err.message : String(err)
   }
-})
+}
+
+onMounted(load)
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
@@ -85,7 +123,7 @@ async function connect() {
   status.value = 'connecting'
   failure.value = null
 
-  // The login and other pages never load xterm; it is imported only when a
+  // The login and other pages never load xterm. The view imports it only when a
   // session starts.
   const [{ Terminal }, { FitAddon }] = await Promise.all([
     import('@xterm/xterm'),
@@ -101,7 +139,7 @@ async function connect() {
       "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 14,
     scrollback: 5000,
-    theme: { background: '#0b0b0f', foreground: '#e5e5e5' },
+    theme: terminalTheme(),
   })
   fit = new FitAddon()
   term.loadAddon(fit)
@@ -164,7 +202,7 @@ function handleControl(raw: string) {
       status.value = 'error'
     }
   } catch {
-    // A malformed control frame is not worth tearing the session down for.
+    // A malformed control frame does not justify closing the session.
   }
 }
 
@@ -189,29 +227,29 @@ function goBack() {
 </script>
 
 <template>
-  <div class="flex h-svh flex-col bg-[#0b0b0f] text-neutral-200">
-    <header class="flex items-center gap-3 border-b border-white/10 px-4 py-2">
-      <Button variant="ghost" size="sm" class="text-neutral-300" @click="goBack">
+  <div class="bg-background text-foreground flex h-svh flex-col">
+    <header class="border-border flex items-center gap-3 border-b px-4 py-2">
+      <Button variant="ghost" size="sm" @click="goBack">
         <ArrowLeft />
         {{ t('common.back') }}
       </Button>
 
       <span class="font-mono text-sm">
         {{ info?.machine.name ?? machineId }}
-        <span v-if="status === 'ready'" class="text-neutral-500">
+        <span v-if="status === 'ready'" class="text-muted-foreground">
           — {{ username }}@{{ info?.machine.ipv4 }}:{{ info?.port }}
         </span>
       </span>
 
       <span
         v-if="info && !info.hostKeyVerified"
-        class="ml-auto text-xs text-amber-500/80"
+        class="text-warning ml-auto text-xs"
         :title="t('ssh.hostKeyHint')"
       >
         {{ t('ssh.hostKeyUnverified') }}
       </span>
 
-      <span class="text-xs text-neutral-400" :class="info && !info.hostKeyVerified ? '' : 'ml-auto'">
+      <span class="text-muted-foreground text-xs" :class="info && !info.hostKeyVerified ? '' : 'ml-auto'">
         {{
           status === 'connecting'
             ? t('ssh.status.connecting')
@@ -227,12 +265,12 @@ function goBack() {
     <div class="flex-1 overflow-hidden p-2">
       <div
         v-if="status === 'prompt'"
-        class="mx-auto mt-16 w-full max-w-sm space-y-4 rounded-lg border border-white/10 p-6"
+        class="border-border mx-auto mt-16 w-full max-w-sm space-y-4 rounded-lg border p-6"
       >
         <h1 class="text-lg font-semibold">{{ t('ssh.prompt.title') }}</h1>
-        <p class="text-sm text-neutral-400">{{ t('ssh.prompt.description') }}</p>
+        <p class="text-muted-foreground text-sm">{{ t('ssh.prompt.description') }}</p>
         <div class="space-y-2">
-          <Label for="ssh-user" class="text-neutral-300">{{ t('ssh.prompt.user') }}</Label>
+          <Label for="ssh-user">{{ t('ssh.prompt.user') }}</Label>
           <Input
             id="ssh-user"
             v-model="username"
@@ -248,7 +286,7 @@ function goBack() {
 
       <div
         v-else-if="status === 'connecting'"
-        class="flex h-full flex-col items-center justify-center gap-3 text-neutral-400"
+        class="text-muted-foreground flex h-full flex-col items-center justify-center gap-3"
       >
         <LoaderCircle class="size-6 animate-spin" />
         <p class="text-sm">{{ t('ssh.connecting', { host: info?.machine.name ?? '' }) }}</p>
@@ -260,8 +298,17 @@ function goBack() {
           <AlertTitle>{{ t('ssh.failedTitle') }}</AlertTitle>
           <AlertDescription>{{ failure }}</AlertDescription>
         </Alert>
+
+        <!-- How to make SSH work. Without this the only message is that it does
+             not, which leaves the operator with nothing to act on. -->
+        <Alert v-if="guidance">
+          <Info />
+          <AlertTitle>{{ t('ssh.enable.title') }}</AlertTitle>
+          <AlertDescription class="whitespace-pre-line">{{ guidance }}</AlertDescription>
+        </Alert>
+
         <div class="flex gap-2">
-          <Button variant="outline" @click="reconnect">
+          <Button variant="outline" @click="load">
             <RotateCw />
             {{ t('common.retry') }}
           </Button>
@@ -273,7 +320,7 @@ function goBack() {
         <div ref="terminalHost" class="h-full w-full" />
         <div
           v-if="status === 'closed'"
-          class="pointer-events-none absolute inset-x-0 bottom-6 text-center text-xs text-neutral-400"
+          class="text-muted-foreground pointer-events-none absolute inset-x-0 bottom-6 text-center text-xs"
         >
           {{ t('ssh.sessionClosed') }}
           <button class="pointer-events-auto ml-2 underline" @click="reconnect">

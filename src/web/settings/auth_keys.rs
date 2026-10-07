@@ -11,10 +11,10 @@ use crate::headscale::PreAuthKey;
 use super::super::error::{ApiError, ApiResult};
 use super::super::state::{Auth, SharedState};
 
-/// Reports whether the caller may manage keys for the given Headscale user id.
+/// Reports whether the caller can manage keys for the given Headscale user id.
 ///
-/// `generate_authkeys` covers every user; `generate_own_authkeys` only the
-/// account's linked Headscale user.
+/// `generate_authkeys` covers every user. `generate_own_authkeys` covers only
+/// the account's linked Headscale user.
 fn may_manage(principal: &crate::auth::Principal, user_id: Option<&str>) -> bool {
     if principal.has(Capability::GenerateAuthKeys) {
         return true;
@@ -62,7 +62,7 @@ pub async fn list(
     let users = state.live.users().await;
     let capabilities = state.headscale.capabilities();
 
-    // 0.28+ lists every key in one call; older versions need one request per
+    // 0.28+ lists every key in one call. Older versions use one request per
     // user. A user whose keys fail to load is returned in `missing`.
     let (keys, missing): (Vec<PreAuthKey>, Vec<String>) =
         if capabilities.pre_auth_keys_have_stable_ids {
@@ -108,7 +108,7 @@ pub async fn list(
 
 #[derive(Deserialize)]
 pub struct CreateKeyRequest {
-    /// Headscale user id; omitted for tag-only keys.
+    /// Headscale user id. Omitted for tag-only keys.
     #[serde(default)]
     user_id: Option<String>,
     #[serde(default)]
@@ -146,14 +146,14 @@ pub async fn create(
 
     if user_id.is_none() && request.acl_tags.is_empty() {
         return Err(ApiError::bad_request(
-            "Choose a user or provide at least one ACL tag",
+            "Choose a user or add at least one ACL tag",
         ));
     }
 
     for tag in &request.acl_tags {
         if !crate::acl::is_valid_tag_name(tag) {
             return Err(ApiError::bad_request(format!(
-                "`{tag}` is not a valid tag; tags must start with `tag:`"
+                "`{tag}` is not a valid tag. Tags must start with `tag:`"
             )));
         }
     }
@@ -241,7 +241,7 @@ pub async fn delete(
     }
     if !state.headscale.capabilities().pre_auth_keys_have_stable_ids {
         return Err(ApiError::bad_request(
-            "Deleting a pre-auth key needs Headscale 0.28 or newer; expire it instead",
+            "Deleting a pre-auth key is available in Headscale 0.28 or newer. Expire it instead",
         ));
     }
 
@@ -293,7 +293,7 @@ mod tests {
         let viewer = principal(Role::Viewer, Some("7"));
         assert!(may_manage(&viewer, Some("7")));
         assert!(!may_manage(&viewer, Some("8")));
-        // Tag-only keys have no owner and are therefore off limits.
+        // Tag-only keys have no owner and are thus off limits.
         assert!(!may_manage(&viewer, None));
     }
 

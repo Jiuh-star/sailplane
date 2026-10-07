@@ -1,7 +1,7 @@
 export default {
   title: 'Headscale logs',
   description:
-    'The container log, straight from the runtime. Only the docker integration can read it: Headscale exposes no log endpoint of its own.',
+    'The container log, straight from the runtime. Only the docker integration can read it. Headscale exposes no log endpoint of its own.',
   history: 'History',
   lines: '{count} lines',
   follow: 'Follow',

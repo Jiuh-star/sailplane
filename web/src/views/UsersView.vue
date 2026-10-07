@@ -80,7 +80,7 @@ const access = computed(
 const accounts = computed(() => data.value?.accounts ?? [])
 const unlinked = computed(() => data.value?.unlinkedUsers ?? [])
 
-/** Known role enums get a translated label; anything else keeps the API label. */
+/** Known role enums get a translated label. Anything else keeps the API label. */
 function roleLabel(role: string, fallback: string) {
   const key = `users.roles.${role}.label`
   return te(key) ? t(key) : fallback

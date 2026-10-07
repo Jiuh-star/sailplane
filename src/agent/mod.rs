@@ -1,10 +1,11 @@
 //! Host information agent.
 //!
 //! The Headscale API does not expose per-node `HostInfo`. Two interchangeable
-//! backends collect it: `system` reads the local Tailscale daemon (netmap
-//! first, status as fallback), and `external` drives the upstream `hp_agent`
-//! binary over its line protocol (`"sync\n"` in, one JSON line out). Results
-//! are stored in `host_info` keyed by Tailscale node key, which views join on.
+//! backends collect it. `system` reads the local Tailscale daemon (netmap
+//! first, status as fallback). `external` drives the upstream `hp_agent`
+//! binary over its line protocol (`"sync\n"` in, one JSON line out). The
+//! service stores the results in `host_info`, keyed by Tailscale node key.
+//! Views join on that key.
 
 pub mod tailscale;
 
@@ -36,7 +37,7 @@ pub struct AgentStatus {
     pub error: Option<String>,
     /// Which Tailscale data source produced the last sync.
     pub source: Option<String>,
-    /// Approval URL, when the agent's node is still awaiting registration.
+    /// Approval URL, when the agent's node waits for registration.
     pub auth_url: Option<String>,
 }
 
@@ -63,14 +64,19 @@ pub struct AgentService {
 
 struct Inner {
     db: Db,
-    config: AgentConfig,
+    /// [`AgentService::reconfigure`] swaps it when a setting changes, so the
+    /// service tracks the current configuration without a restart.
+    config: std::sync::RwLock<AgentConfig>,
     /// Used to approve the agent's own registration automatically.
-    headscale: Option<crate::headscale::ApiClient>,
+    headscale: std::sync::RwLock<Option<crate::headscale::ApiClient>>,
     /// Set when the agent cannot run at all (no API key, old Headscale, …).
-    disabled_reason: Option<String>,
+    disabled_reason: std::sync::RwLock<Option<String>>,
     state: Mutex<AgentState>,
     /// Long-running child for the external backend.
     child: Mutex<Option<AgentChild>>,
+    /// Wakes the refresher so a configuration change takes effect at once
+    /// instead of waiting out the current interval.
+    wake: tokio::sync::Notify,
 }
 
 #[derive(Default)]
@@ -93,7 +99,7 @@ struct AgentChild {
 impl AgentService {
     /// Builds the service, or one that reports itself as disabled.
     ///
-    /// `headscale` is the admin API client; when present the agent approves its
+    /// `headscale` is the admin API client. When present, the agent approves its
     /// own pending registration instead of leaving the operator to click
     /// through an auth URL.
     pub fn new(
@@ -105,35 +111,67 @@ impl AgentService {
         Self {
             inner: Arc::new(Inner {
                 db,
-                config,
-                headscale,
-                disabled_reason,
+                config: std::sync::RwLock::new(config),
+                headscale: std::sync::RwLock::new(headscale),
+                disabled_reason: std::sync::RwLock::new(disabled_reason),
                 state: Mutex::new(AgentState::default()),
                 child: Mutex::new(None),
+                wake: tokio::sync::Notify::new(),
             }),
         }
     }
 
+    /// Swaps in a fresh configuration so a saved setting takes effect without a
+    /// restart: the next refresh tick uses the new backend and socket.
+    pub fn reconfigure(
+        &self,
+        config: AgentConfig,
+        disabled_reason: Option<String>,
+        headscale: Option<crate::headscale::ApiClient>,
+    ) {
+        *self.inner.config.write().expect("config lock") = config;
+        *self.inner.disabled_reason.write().expect("reason lock") = disabled_reason;
+        *self.inner.headscale.write().expect("headscale lock") = headscale;
+        // Sync immediately rather than waiting out the current interval.
+        self.inner.wake.notify_one();
+    }
+
+    fn config(&self) -> AgentConfig {
+        self.inner.config.read().expect("config lock").clone()
+    }
+
+    fn reason(&self) -> Option<String> {
+        self.inner.disabled_reason.read().expect("reason lock").clone()
+    }
+
+    fn client(&self) -> Option<crate::headscale::ApiClient> {
+        self.inner
+            .headscale
+            .read()
+            .expect("headscale lock")
+            .clone()
+    }
+
     pub fn is_enabled(&self) -> bool {
-        self.inner.config.enabled && self.inner.disabled_reason.is_none()
+        self.config().enabled && self.reason().is_none()
     }
 
     pub fn name(&self) -> &'static str {
-        match self.inner.config.backend {
+        match self.config().backend {
             AgentBackend::System => "system",
             AgentBackend::External => "external",
         }
     }
 
     pub fn cache_ttl(&self) -> std::time::Duration {
-        std::time::Duration::from_millis(self.inner.config.cache_ttl)
+        std::time::Duration::from_millis(self.config().cache_ttl)
     }
 
     pub async fn status(&self) -> AgentStatus {
-        if let Some(reason) = self.inner.disabled_reason.clone() {
+        if let Some(reason) = self.reason() {
             return AgentStatus::disabled(reason);
         }
-        if !self.inner.config.enabled {
+        if !self.config().enabled {
             return AgentStatus::disabled(
                 "The Sailplane agent is not enabled in the configuration.",
             );
@@ -182,15 +220,13 @@ impl AgentService {
         if !self.is_enabled() {
             anyhow::bail!(
                 "{}",
-                self.inner
-                    .disabled_reason
-                    .clone()
-                    .unwrap_or_else(|| "the agent is not enabled".into())
+                self.reason().unwrap_or_else(|| "the agent is not enabled".into())
             );
         }
 
-        let collected = match self.inner.config.backend {
-            AgentBackend::System => tailscale::collect(self.inner.config.socket.as_deref()).await,
+        let config = self.config();
+        let collected = match config.backend {
+            AgentBackend::System => tailscale::collect(config.socket.as_deref()).await,
             AgentBackend::External => self
                 .collect_external()
                 .await
@@ -284,10 +320,10 @@ impl AgentService {
 
     /// Approves the agent's own registration using the admin API key.
     ///
-    /// Returns whether it succeeded; on failure the auth URL is surfaced in the
+    /// Returns whether it succeeded. On failure, the auth URL is surfaced in the
     /// UI so an operator can approve it by hand.
     async fn try_auto_approve(&self, auth_url: &str) -> bool {
-        let Some(client) = self.inner.headscale.as_ref() else {
+        let Some(client) = self.client() else {
             return false;
         };
         let Some(auth_id) = auth_id_from_url(auth_url) else {
@@ -307,15 +343,16 @@ impl AgentService {
     }
 
     async fn spawn_child(&self) -> Result<AgentChild> {
-        let executable = &self.inner.config.executable_path;
+        let config = self.config();
+        let executable = &config.executable_path;
         // The external backend spawns the upstream `hp_agent` binary. These
-        // names are that binary's contract; do not rename them.
+        // names are that binary's contract. Do not rename them.
         let mut process = tokio::process::Command::new(executable)
-            .env("HEADPLANE_AGENT_HOSTNAME", &self.inner.config.host_name)
-            .env("HEADPLANE_AGENT_WORK_DIR", &self.inner.config.work_dir)
+            .env("HEADPLANE_AGENT_HOSTNAME", &config.host_name)
+            .env("HEADPLANE_AGENT_WORK_DIR", &config.work_dir)
             .env(
                 "HEADPLANE_AGENT_TS_NETNS",
-                if self.inner.config.tailscale_netns {
+                if config.tailscale_netns {
                     "true"
                 } else {
                     "false"
@@ -347,41 +384,87 @@ impl AgentService {
     /// Spawns a background refresher that syncs every `cache_ttl`.
     ///
     /// Node keys come from the live store so host info for deleted nodes is
-    /// pruned automatically.
+    /// pruned automatically. The loop runs even while the agent is off, so
+    /// enabling it from the web starts collecting on the next tick without a
+    /// restart.
     pub fn spawn_refresher(self: &Arc<Self>, live: Arc<crate::headscale::LiveStore>) {
-        if !self.is_enabled() {
-            return;
-        }
         let this = Arc::clone(self);
-        let interval = this.cache_ttl().max(std::time::Duration::from_secs(30));
 
         tokio::spawn(async move {
             // Give the live store a moment to load before the first sync.
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-            let mut ticker = tokio::time::interval(interval);
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
             loop {
-                ticker.tick().await;
-                let keys: Vec<String> = live
-                    .nodes()
-                    .await
-                    .data
-                    .iter()
-                    .map(|node| node.node_key.clone())
-                    .collect();
+                // Read the interval each pass so a changed cache_ttl applies.
+                let interval = this.cache_ttl().max(std::time::Duration::from_secs(30));
 
-                if let Err(err) = this.sync(&keys).await {
-                    tracing::debug!("agent sync failed: {err:#}");
+                if this.is_enabled() {
+                    let keys: Vec<String> = live
+                        .nodes()
+                        .await
+                        .data
+                        .iter()
+                        .map(|node| node.node_key.clone())
+                        .collect();
+
+                    if let Err(err) = this.sync(&keys).await {
+                        tracing::debug!("agent sync failed: {err:#}");
+                    }
+                }
+
+                // Sleep until the interval elapses, or a saved setting wakes us
+                // early, so a change is reflected without an immediate restart.
+                tokio::select! {
+                    _ = tokio::time::sleep(interval) => {}
+                    _ = this.inner.wake.notified() => {}
                 }
             }
         });
     }
 }
 
-/// The agent reports an auth URL when its node needs approval; the last path
-/// segment is the auth id used by `POST /api/v1/auth/approve`.
+/// Explains why the agent cannot run, or `None` when it can.
+///
+/// Recomputed whenever a setting is saved, so the reason tracks the current
+/// configuration instead of being frozen at startup.
+pub fn disabled_reason(
+    config: &crate::config::Config,
+    headscale: &crate::headscale::Headscale,
+) -> Option<String> {
+    let agent_config = config.integration.as_ref()?.agent.as_ref()?;
+    if !agent_config.enabled {
+        return Some("The Sailplane agent is disabled in the configuration.".into());
+    }
+    if config.headscale.api_key.is_none() {
+        return Some(
+            "The agent cannot register itself or read node data without `headscale.api_key`."
+                .into(),
+        );
+    }
+    if !headscale.capabilities().agent_supported() {
+        return Some(
+            "The agent can use tag-only pre-authentication keys only on Headscale 0.28.0 or newer."
+                .into(),
+        );
+    }
+    if agent_config.backend == AgentBackend::System {
+        let socket = agent_config
+            .socket
+            .clone()
+            .unwrap_or_else(|| std::path::PathBuf::from(tailscale::DEFAULT_SOCKET));
+        if !socket.exists() {
+            return Some(format!(
+                "No Tailscale daemon socket at {}. Mount the socket into the container, or set \
+                 `integration.agent.socket` to its path.",
+                socket.display()
+            ));
+        }
+    }
+    None
+}
+
+/// The agent reports an auth URL when its node waits for approval. The last
+/// path segment is the auth id for `POST /api/v1/auth/approve`.
 pub fn extract_auth_url(message: &str) -> Option<String> {
     message
         .split_whitespace()
@@ -403,6 +486,19 @@ pub fn auth_id_from_url(url: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn agent_config(enabled: bool) -> AgentConfig {
+        AgentConfig {
+            enabled,
+            host_name: "sailplane-agent".into(),
+            cache_ttl: 180_000,
+            backend: AgentBackend::System,
+            socket: None,
+            executable_path: "/usr/libexec/sailplane/agent".into(),
+            work_dir: "/var/lib/sailplane/agent".into(),
+            tailscale_netns: true,
+        }
+    }
 
     #[test]
     fn extracts_auth_url_from_agent_output() {
@@ -429,17 +525,7 @@ mod tests {
     #[test]
     fn disabled_agent_reports_a_reason() {
         let db = Db::open_in_memory().unwrap();
-        let config = AgentConfig {
-            enabled: true,
-            host_name: "sailplane-agent".into(),
-            cache_ttl: 180_000,
-            backend: AgentBackend::System,
-            socket: None,
-            executable_path: "/usr/libexec/sailplane/agent".into(),
-            work_dir: "/var/lib/sailplane/agent".into(),
-            tailscale_netns: true,
-        };
-        let service = AgentService::new(db, config, Some("no API key".into()), None);
+        let service = AgentService::new(db, agent_config(true), Some("no API key".into()), None);
         assert!(!service.is_enabled());
 
         let status = tokio::runtime::Runtime::new()
@@ -447,5 +533,21 @@ mod tests {
             .block_on(service.status());
         assert!(!status.enabled);
         assert_eq!(status.reason.as_deref(), Some("no API key"));
+    }
+
+    #[test]
+    fn reconfiguring_takes_effect_without_a_restart() {
+        let db = Db::open_in_memory().unwrap();
+        let service = AgentService::new(db, agent_config(false), None, None);
+        assert!(!service.is_enabled());
+
+        // Enabling from the web swaps the configuration in place.
+        service.reconfigure(agent_config(true), None, None);
+        assert!(service.is_enabled());
+        assert_eq!(service.name(), "system");
+
+        // A configuration that cannot run still reports disabled.
+        service.reconfigure(agent_config(true), Some("no socket".into()), None);
+        assert!(!service.is_enabled());
     }
 }

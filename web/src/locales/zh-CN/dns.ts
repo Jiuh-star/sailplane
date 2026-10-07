@@ -28,7 +28,7 @@ export default {
     splitBadge: '拆分 DNS',
     noneConfigured: '未配置',
     add: '添加名称服务器',
-    addDescription: '全局解析器对所有查询生效；拆分 DNS 只接管指定域名。',
+    addDescription: '全局解析器对所有查询生效。拆分 DNS 只接管指定域名。',
     domain: '域名',
     ip: '名称服务器 IP',
     added: '名称服务器已添加',

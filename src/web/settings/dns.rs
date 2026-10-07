@@ -24,7 +24,7 @@ fn current_override(state: &SharedState) -> Result<bool, ApiError> {
         .unwrap_or(true))
 }
 
-/// Ensures the caller may edit network settings and that the config is
+/// Makes sure that the caller can edit network settings and that the config is
 /// writable.
 fn require_writable(
     state: &SharedState,
@@ -169,7 +169,7 @@ pub async fn set_override(
 #[derive(Deserialize)]
 pub struct NameserverRequest {
     ns: String,
-    /// Empty or `global` targets the global list; anything else is split DNS.
+    /// Empty or `global` targets the global list. Anything else is split DNS.
     #[serde(default)]
     split_name: Option<String>,
 }
@@ -265,7 +265,7 @@ pub async fn remove_nameserver(
     // restart.
     if is_global && servers.is_empty() && current_override(&state)? {
         return Err(ApiError::bad_request(
-            "This is the last global nameserver and `override_local_dns` is enabled; Headscale \
+            "This is the last global nameserver and `override_local_dns` is enabled. Headscale \
              refuses to start with an empty list. Add another nameserver first, or turn off \
              “Override local DNS”.",
         ));

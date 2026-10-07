@@ -30,7 +30,17 @@ export default {
   server: {
     title: '内置 DERP 服务器',
     description: '在 Headscale 内部运行中继，适合没有其他可达中继的网络。',
-    hint: '启用还需要在配置文件中填写 `derp.server.stun_listen_addr`、私钥路径，并放通相应端口。',
+    hint: '要启用它，你必须在配置文件中填写 `derp.server.stun_listen_addr`、私钥路径，并放通相应端口。',
+  },
+  relays: {
+    title: '中继服务器',
+    description: '所配置来源解析出的区域与服务器。URL 会实时抓取。',
+    empty: '未发现中继服务器',
+    emptyDescription: '请添加地图 URL、本地地图文件，或在上方启用内置服务器。',
+    unnamed: '未命名区域',
+    count: '{count} 台服务器',
+    derpPort: 'DERP {port}',
+    stunPort: 'STUN {port}',
   },
   toast: {
     urlAdded: '已添加中继 URL',

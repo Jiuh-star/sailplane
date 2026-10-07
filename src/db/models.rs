@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::roles::Role;
 
-/// A Sailplane account. OIDC and proxy-auth users get local accounts;
+/// A Sailplane account. OIDC and proxy-auth users get local accounts.
 /// API-key logins are session-only and never stored here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SailplaneUser {

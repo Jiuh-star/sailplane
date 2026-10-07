@@ -10,7 +10,7 @@ export default {
     title: 'Headscale 配置不可写',
     description: '限制存储在 Headscale 配置文件中，Sailplane 无法写入该文件。',
   },
-  allowEveryoneHint: '留空表示允许身份提供商中的所有用户。',
+  allowEveryoneHint: '留空表示允许身份提供商中的所有用户登录。',
   sections: {
     domains: {
       title: '允许的域名',

@@ -1,8 +1,8 @@
 //! The Headscale log stream.
 //!
-//! Reading the logs needs the container runtime, which only the Docker
-//! integration has: Headscale's own API exposes no log endpoint, and the
-//! process integration can send a signal but not read stdout.
+//! Reading the logs is possible only with the container runtime, which only
+//! the Docker integration has: Headscale's own API exposes no log endpoint, and
+//! the process integration can send a signal but not read stdout.
 
 use axum::body::Body;
 use axum::extract::{Query, State};
@@ -57,7 +57,7 @@ pub async fn stream(
         .map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
 
     // A followed log never ends on its own, and graceful shutdown waits for
-    // it; end it here so the process can exit.
+    // it. End it here so the process can exit.
     use futures_util::StreamExt;
     let mut logs = Box::pin(logs);
     let stream = async_stream::stream! {
@@ -82,7 +82,7 @@ pub async fn stream(
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("text/plain; charset=utf-8"),
             ),
-            // The body arrives over minutes; nothing may buffer or compress it.
+            // The body arrives over minutes. Nothing can buffer or compress it.
             (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
             (
                 header::HeaderName::from_static("x-accel-buffering"),

@@ -35,7 +35,7 @@ pub(super) async fn stored_policy(
     }
 }
 
-/// Returns the stored policy and everything the editor needs. `GET /api/acl`
+/// Returns the stored policy and all data necessary for the editor. `GET /api/acl`
 pub async fn get_policy(
     State(state): State<SharedState>,
     Auth(principal): Auth,
@@ -107,7 +107,7 @@ fn selectors(nodes: &[crate::headscale::Machine], policy: Option<&AclPolicy>) ->
             .collect::<std::collections::BTreeSet<_>>(),
         "machines": machines,
         // Dynamic selectors. Which machines they name depends on who is
-        // asking, which the editor cannot know; they are offered as text.
+        // asking, which the editor cannot know. They are offered as text.
         "autogroups": {
             "source": ["autogroup:member", "autogroup:admin"],
             "destination": ["autogroup:internet", "autogroup:self"],
@@ -208,23 +208,23 @@ pub async fn simulate(
 /// Renders the structured policy for the editor.
 ///
 /// The editor round-trips this value straight back into the policy text, so it
-/// must match what `to_text` writes. Serialising the model directly keeps the
-/// two in step: field order comes from the struct (`preserve_order` in
+/// must match what `to_text` writes. Serializing the model directly keeps the
+/// two in step. Field order comes from the struct (`preserve_order` in
 /// Cargo.toml keeps the maps ordered) and unknown keys stay where they belong.
 fn parsed_policy(policy: &AclPolicy) -> Value {
-    serde_json::to_value(policy).expect("the policy model is serialisable")
+    serde_json::to_value(policy).expect("the policy model is serializable")
 }
 
 /// Warnings the editor shows without blocking a save.
 ///
 /// A posture reference that names nothing is a likely mistake, but Headscale
-/// may still accept it; the user decides.
+/// can still accept it. The user decides.
 fn policy_warnings(policy: &AclPolicy) -> Vec<String> {
     let mut warnings = Vec::new();
 
     if !policy.acls.is_empty() && !policy.grant_rules().is_empty() {
         warnings.push(
-            "`acls` and `grants` are both present; prefer one access syntax to avoid ambiguity"
+            "`acls` and `grants` are both present. Prefer one access syntax to avoid ambiguity"
                 .into(),
         );
     }
@@ -251,7 +251,7 @@ fn policy_warnings(policy: &AclPolicy) -> Vec<String> {
 }
 
 /// Rejects rules that cannot mean anything, so a save fails before it reaches
-/// Headscale. Only structural mistakes are refused; semantic questions stay
+/// Headscale. Only structural mistakes are refused. Semantic questions stay
 /// warnings.
 fn validate_rules(policy: &AclPolicy) -> Result<(), String> {
     check_rules(
@@ -277,7 +277,7 @@ fn validate_rules(policy: &AclPolicy) -> Result<(), String> {
     )
 }
 
-/// Every rule needs at least one non-blank source and destination.
+/// Every rule must have at least one non-blank source and destination.
 fn check_rules<'a>(
     label: &str,
     rules: impl Iterator<Item = (&'a [String], &'a [String])>,
@@ -287,7 +287,7 @@ fn check_rules<'a>(
             || dst.iter().all(|entry| entry.trim().is_empty())
         {
             return Err(format!(
-                "{label} rule {} needs a source and a destination",
+                "{label} rule {} must have a source and a destination",
                 index + 1
             ));
         }
@@ -310,8 +310,8 @@ pub async fn set_policy(
     validate_rules(&parsed).map_err(ApiError::bad_request)?;
     let warnings = policy_warnings(&parsed);
 
-    // Headscale requires `host:port`; normalise bare hosts here as well as in
-    // the editor so the API is safe without the UI.
+    // Headscale accepts only `host:port`. Normalize bare hosts here as well as
+    // in the editor so the API is safe without the UI.
     for rule in parsed.acls.iter_mut() {
         let (dst, _) = crate::acl::normalise_destinations(&rule.dst);
         rule.dst = dst;
@@ -333,12 +333,12 @@ pub async fn set_policy(
             "warnings": warnings,
         }))),
         Err(err) if err.is_policy_read_only() => Err(ApiError::forbidden(
-            "The ACL policy is read-only because Headscale is using file mode. Set \
+            "The ACL policy is read-only because Headscale uses file mode. Set \
              `policy.mode: database` in the Headscale configuration to enable editing.",
         )),
         Err(err) => {
             // Headscale prefixes parse failures with `parsing HuJSON:` or
-            // `parsing policy from bytes:`; strip that so the editor shows a
+            // `parsing policy from bytes:`. Strip that so the editor shows a
             // plain syntax error.
             let raw = err.raw_body();
             for prefix in ["parsing HuJSON:", "parsing policy from bytes:"] {

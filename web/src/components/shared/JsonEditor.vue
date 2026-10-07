@@ -16,7 +16,7 @@ const props = withDefaults(
   defineProps<{
     modelValue: string
     readonly?: boolean
-    /** Rendered height; the editor scrolls inside it. */
+    /** Rendered height. The editor scrolls inside it. */
     minHeight?: string
   }>(),
   { readonly: false, minHeight: '28rem' },
@@ -28,7 +28,7 @@ const host = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
 let themeObserver: MutationObserver | null = null
 
-/** CodeMirror needs the light or dark extension chosen up front. */
+/** CodeMirror uses the light or dark extension chosen up front. */
 function themeExtension(): Extension {
   return document.documentElement.classList.contains('dark')
     ? oneDark
@@ -70,7 +70,7 @@ onMounted(() => {
     parent: host.value,
   })
 
-  // Swap the highlight theme when the app toggles dark mode.
+  // When the app toggles dark mode, swap the highlight theme.
   themeObserver = new MutationObserver(rebuild)
   themeObserver.observe(document.documentElement, {
     attributes: true,

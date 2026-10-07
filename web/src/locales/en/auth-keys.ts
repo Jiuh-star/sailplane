@@ -33,12 +33,12 @@ export default {
   delete: 'Delete',
   deleteDialog: {
     title: 'Delete this pre-auth key?',
-    description: '{key} is removed from Headscale. Expire keeps it in the list; this does not.',
+    description: '{key} is removed from Headscale. Expire keeps it in the list. Delete does not.',
     confirm: 'Delete key',
   },
   createDialog: {
     title: 'Create a pre-auth key',
-    description: 'The key is shown once. Machines use it with {command}.',
+    description: 'Sailplane shows the key once. Machines use it with {command}.',
     tagOnly: 'Tag only (no owner)',
     user: 'User',
     userOptional: '(optional with tags)',

@@ -16,7 +16,7 @@ use super::error::{ApiError, ApiResult};
 use super::presentation::{AccessView, HeadscaleVersionView, UserView};
 use super::state::{AppState, MaybeAuth, SharedState};
 
-/// Returns everything the SPA shell needs on boot. `GET /api/session`
+/// Returns everything necessary for the SPA shell at boot. `GET /api/session`
 ///
 /// Unauthenticated callers still get a 200 with `authenticated: false` so the
 /// login page can render configuration warnings without a second request.
@@ -86,7 +86,7 @@ fn config_view(state: &AppState) -> Value {
     })
 }
 
-/// True while the first-run wizard should be shown: a fresh deployment with no
+/// True when the UI must show the first-run wizard: a fresh deployment with no
 /// account, no single sign-on, and no Headscale API key yet.
 pub(super) fn setup_required(state: &AppState) -> bool {
     let onboarded = state
@@ -99,7 +99,7 @@ pub(super) fn setup_required(state: &AppState) -> bool {
         return false;
     }
     // A deployment that already has a Headscale API key (imported from a legacy
-    // config file or set in the environment) is configured; the wizard would
+    // config file or set in the environment) is configured. The wizard would
     // only re-ask for values it already has.
     if state.config().headscale.api_key.is_some() {
         return false;
@@ -121,7 +121,7 @@ pub async fn login(
     State(state): State<SharedState>,
     Json(request): Json<LoginRequest>,
 ) -> ApiResult<Response> {
-    // The SPA hides the form when the deployment is SSO-only; the API has to
+    // The SPA hides the form when the deployment is SSO-only. The API has to
     // refuse as well, or the policy is only a UI preference.
     if state
         .config()
@@ -130,7 +130,7 @@ pub async fn login(
         .is_some_and(|oidc| oidc.disable_api_key_login)
     {
         return Err(ApiError::forbidden(
-            "API key sign-in is disabled for this deployment; sign in with single sign-on",
+            "API key sign-in is disabled for this deployment. Sign in with single sign-on",
         ));
     }
 
@@ -408,7 +408,7 @@ fn oidc_redirect_response(
 }
 
 /// Cookie attributes of the short-lived OIDC transaction cookie. The callback
-/// clears the cookie with the same attributes; a different path would leave
+/// clears the cookie with the same attributes. A different path would leave
 /// the original cookie in the browser.
 fn oidc_state_options(state: &AppState) -> CookieOptions {
     CookieOptions {
@@ -430,8 +430,8 @@ mod tests {
     use super::*;
 
     /// The session cookie must not shadow the cleared transaction cookie. A
-    /// regression here breaks every OIDC sign-in while the API key login keeps
-    /// working, which is hard to spot without this check.
+    /// regression here breaks every OIDC sign-in while the API key login still
+    /// works, which is hard to spot without this check.
     #[test]
     fn oidc_redirect_keeps_both_cookies() {
         let response = oidc_redirect_response(

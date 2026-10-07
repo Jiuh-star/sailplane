@@ -2,8 +2,8 @@
 //!
 //! Sailplane's configuration lives in the database, with the environment and
 //! built-in defaults layered around it. A snapshot is swapped in place, so a
-//! request that reads a value sees the latest save. Settings that need a
-//! restart to take effect are marked in [`super::schema`].
+//! request that reads a value sees the latest save. Settings that take effect
+//! only after a restart are marked in [`super::schema`].
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -58,11 +58,11 @@ impl Settings {
                 }
             }
         } else if legacy.is_some_and(Path::exists) {
-            tracing::warn!("ignoring the config file; settings are now stored in the database");
+            tracing::warn!("ignoring the config file. Settings are now stored in the database");
         }
 
-        // A cookie secret is required before any session can be signed. Generate
-        // one on first boot rather than refusing to start.
+        // A cookie secret is necessary before Sailplane can sign any session.
+        // Generate one on first boot rather than refusing to start.
         if db
             .load_settings()?
             .iter()
@@ -170,7 +170,7 @@ pub fn build(db: &Db) -> Result<(Config, BTreeMap<String, Source>)> {
 /// part of the configuration schema.
 pub fn stored_tree(db: &Db) -> Result<(Value, BTreeMap<String, Source>)> {
     let mut tree = serde_json::to_value(Config::default())
-        .context("failed to serialise the default configuration")?;
+        .context("failed to serialize the default configuration")?;
     let mut sources = BTreeMap::new();
 
     for row in db.load_settings()? {
@@ -216,13 +216,13 @@ pub fn set_path(tree: &mut Value, path: &str, value: Value) -> Result<()> {
 }
 
 /// Applies `SAILPLANE_<SECTION>__<KEY>` overrides to the JSON tree. A double
-/// underscore separates nesting; single underscores stay in the key.
+/// underscore separates nesting. Single underscores stay in the key.
 fn apply_env(tree: &mut Value, sources: &mut BTreeMap<String, Source>) -> Result<()> {
     apply_env_from(std::env::vars(), tree, sources)
 }
 
 /// Applies overrides from an arbitrary variable source. Production passes the
-/// process environment; tests pass their own, so they do not have to mutate
+/// process environment. Tests pass their own, so they do not have to mutate
 /// global state.
 pub fn apply_env_from<I>(
     vars: I,

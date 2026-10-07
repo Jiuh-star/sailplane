@@ -1,7 +1,7 @@
 //! Role-based access control.
 //!
-//! Roles are stored on the sailplane user row; capabilities are a bitmask
-//! derived from the role. API-key principals bypass every check, matching
+//! Roles are stored on the sailplane user row. Capabilities are a bitmask
+//! derived from the role. API-key principals bypass every check, which matches
 //! upstream where possession of the Headscale admin key is the trust boundary.
 
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ impl Capability {
     /// integrations). Owner only.
     pub const ConfigureSailplane: Capability = Capability(1 << 17);
 
-    /// All bits set; used by the owner role and API-key principals.
+    /// All bits are set. The owner role and API-key principals use them.
     pub const ALL: Capability = Capability((1 << 18) - 1);
 }
 
@@ -97,7 +97,7 @@ impl Role {
         }
     }
 
-    /// Parses a role name, falling back to `member` for unknown values.
+    /// Parses a role name and falls back to `member` for unknown values.
     pub fn parse(input: &str) -> Self {
         match input.trim().to_ascii_lowercase().as_str() {
             "owner" => Self::Owner,
@@ -134,7 +134,7 @@ impl Role {
         }
     }
 
-    /// Every role that can be assigned through the UI (owner is excluded).
+    /// Every role that you can assign through the UI (owner is excluded).
     pub fn assignable() -> [Role; 6] {
         [
             Self::Admin,

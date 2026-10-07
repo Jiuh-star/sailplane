@@ -89,7 +89,7 @@ const sections = computed(() =>
       description: t('settings.sections.apiKeys.description'),
     },
     {
-      // Sailplane's own configuration, which only the owner may edit.
+      // Sailplane's own configuration, which only the owner can edit.
       show: access.value.owner,
       to: { name: 'deployment' },
       icon: Settings,
@@ -136,7 +136,7 @@ const sections = computed(() =>
 
     <Card>
       <CardHeader>
-        <CardTitle class="text-base">{{ t('settings.deployment.title') }}</CardTitle>
+        <CardTitle class="text-base">{{ t('settings.deployment.overviewTitle') }}</CardTitle>
         <CardDescription>{{ t('settings.deployment.description') }}</CardDescription>
       </CardHeader>
       <CardContent>

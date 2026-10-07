@@ -13,7 +13,7 @@ use super::error::{ApiError, ApiResult};
 use super::presentation::MachineView;
 use super::state::{Auth, SharedState};
 
-/// Lists machines with their host info and the versions the UI needs. `GET /api/machines`
+/// Lists machines with their host info and the versions necessary for the UI. `GET /api/machines`
 pub async fn list(
     State(state): State<SharedState>,
     Auth(principal): Auth,
@@ -35,7 +35,7 @@ pub async fn list(
         .collect();
 
     // Declared tags come from the ACL policy. A missing or unreadable policy
-    // is not fatal; the UI then offers no tag suggestions.
+    // is not fatal. The UI then offers no tag suggestions.
     let policy = state
         .admin_client()
         .map(|client| async move { client.get_policy().await.ok() });
@@ -110,7 +110,7 @@ pub async fn detail(
     })))
 }
 
-/// Loads a machine and checks the caller may modify it.
+/// Loads a machine and checks the caller can modify it.
 async fn writable_node(
     state: &SharedState,
     principal: &crate::auth::Principal,
@@ -179,7 +179,7 @@ pub async fn register(
     Ok(Json(json!({ "machine": node })))
 }
 
-/// Headscale 0.29+ expects the full `hskey-authreq-…` key; earlier versions
+/// Headscale 0.29+ expects the full `hskey-authreq-…` key. Earlier versions
 /// want the bare id.
 pub fn normalise_registration_key(
     raw: &str,
@@ -212,7 +212,7 @@ pub async fn rename(
     let name = request.name.trim();
     if !crate::util::is_valid_dns_label(name) {
         return Err(ApiError::bad_request(
-            "Machine names may only contain lowercase letters, digits and dashes",
+            "Machine names can contain only lowercase letters, digits and dashes",
         ));
     }
 
@@ -268,7 +268,7 @@ pub struct ExpiryRequest {
     disable_expiry: bool,
 }
 
-/// Enables or disables key expiry; requires Headscale 0.29+. `POST /api/machines/{id}/expiry`
+/// Enables or disables key expiry. It is available in Headscale 0.29+. `POST /api/machines/{id}/expiry`
 pub async fn toggle_expiry(
     State(state): State<SharedState>,
     Auth(principal): Auth,
@@ -277,7 +277,7 @@ pub async fn toggle_expiry(
 ) -> ApiResult<Json<Value>> {
     if !state.headscale.capabilities().key_expiry_can_be_disabled {
         return Err(ApiError::bad_request(
-            "This Headscale version cannot disable key expiry; upgrade to 0.29.0 or newer",
+            "This Headscale version cannot disable key expiry. Upgrade to 0.29.0 or newer",
         ));
     }
 
@@ -310,7 +310,7 @@ pub async fn update_tags(
     for tag in &request.tags {
         if !crate::acl::is_valid_tag_name(tag) {
             return Err(ApiError::bad_request(format!(
-                "`{tag}` is not a valid tag; tags must start with `tag:`"
+                "`{tag}` is not a valid tag. Tags must start with `tag:`"
             )));
         }
     }
@@ -357,7 +357,7 @@ pub async fn update_routes(
 
     if !node.available_routes.contains(&request.route) {
         return Err(ApiError::bad_request(
-            "That route is not advertised by this machine",
+            "This machine does not advertise that route",
         ));
     }
 
@@ -387,7 +387,7 @@ pub struct OwnerRequest {
     user: String,
 }
 
-/// Reassigns a machine's owner; available before Headscale 0.28. `POST /api/machines/{id}/owner`
+/// Reassigns a machine's owner. The option is available before Headscale 0.28. `POST /api/machines/{id}/owner`
 pub async fn reassign(
     State(state): State<SharedState>,
     Auth(principal): Auth,
@@ -396,7 +396,7 @@ pub async fn reassign(
 ) -> ApiResult<Json<Value>> {
     if state.headscale.capabilities().node_owner_is_immutable {
         return Err(ApiError::bad_request(
-            "This Headscale version no longer allows changing a machine's owner",
+            "This Headscale version no longer lets you change a machine's owner",
         ));
     }
 

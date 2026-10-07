@@ -25,7 +25,7 @@ export default {
     errorAuthFailed: '登录失败，请重试。',
     discoveryFailed: 'Sailplane 无法访问 OpenID Connect 发现文档。在提供方恢复响应之前，单点登录不可用。',
     missingEndpoints: 'OpenID Connect 提供方缺少必需的端点（授权、令牌或 JWKS）。',
-    invalidApiKey: '单点登录需要 Headscale API Key 来关联账户。',
+    invalidApiKey: '要关联账户，单点登录必须有 Headscale API Key。',
     notConfigured: '未配置单点登录。',
   },
 }

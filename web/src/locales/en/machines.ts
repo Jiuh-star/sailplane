@@ -37,7 +37,7 @@ export default {
   },
   empty: {
     title: 'No machines match the current filters',
-    description: 'Try clearing the search or filters, or register a new machine.',
+    description: 'Clear the search or filters, or register a new machine.',
   },
   tagOwned: 'Tag-owned',
   actionsLabel: 'Machine actions',
@@ -60,19 +60,19 @@ export default {
   },
   routes: {
     title: 'Edit route settings',
-    description: 'Approve the subnets and exit-node traffic this machine may route.',
+    description: 'Approve the subnets and exit-node traffic this machine can route.',
     subnetRoutes: 'Subnet routes',
-    noSubnets: 'No subnet routes are advertised by this machine.',
+    noSubnets: 'This machine does not advertise any subnet routes.',
     exitNode: 'Exit node',
     notExitNode: 'This machine is not an exit node.',
   },
   tags: {
     title: 'Edit ACL tags',
-    description: 'Tagged machines are owned by the tag rather than a user.',
+    description: 'Tagged machines belong to the tag, not to a user.',
     empty: 'This machine has no tags.',
     undeclaredTitle: 'Undeclared tags',
     undeclaredBody:
-      '{tags} is not declared under tagOwners in the ACL policy. Headscale will reject the change until it is. | {tags} are not declared under tagOwners in the ACL policy. Headscale will reject the change until they are.',
+      '{tags} is not declared under tagOwners in the ACL policy. Headscale will reject the change until you declare it. | {tags} are not declared under tagOwners in the ACL policy. Headscale will reject the change until you declare them.',
   },
   owner: {
     title: 'Change owner',
@@ -82,12 +82,12 @@ export default {
   },
   expire: {
     title: 'Expire machine key?',
-    description: '{name} will need to re-authenticate before it can rejoin the tailnet.',
+    description: '{name} must re-authenticate before it can rejoin the tailnet.',
     confirm: 'Expire key',
   },
   remove: {
     title: 'Remove machine?',
-    description: '{name} will be deleted from Headscale. This cannot be undone.',
+    description: 'Sailplane deletes {name} from Headscale. This cannot be undone.',
     confirm: 'Remove machine',
     owner: 'Owner',
     created: 'Created',

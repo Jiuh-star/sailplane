@@ -126,12 +126,7 @@ const filtered = computed(() => {
     if (statusFilter.value === 'offline' && machine.online) return false
     if (statusFilter.value === 'expired' && !machine.expired) return false
 
-    if (routeFilter.value === 'exit') {
-      const isExit = [...machine.approvedRoutes, ...machine.availableRoutes].some(
-        (route) => route === '0.0.0.0/0' || route === '::/0',
-      )
-      if (!isExit) return false
-    }
+    if (routeFilter.value === 'exit' && !machine.exit_node) return false
     if (routeFilter.value === 'subnet') {
       const hasSubnet = machine.availableRoutes.some(
         (route) => route !== '0.0.0.0/0' && route !== '::/0',

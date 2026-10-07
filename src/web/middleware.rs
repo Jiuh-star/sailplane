@@ -9,9 +9,9 @@ use super::state::SharedState;
 
 /// Whether the request's `Origin` matches its `Host`.
 ///
-/// `None` means the header was absent, which is distinct from a mismatch:
-/// non-browser clients omit it, and the WebSocket upgrade path requires it
-/// outright.
+/// `None` means the header was absent, which is distinct from a mismatch.
+/// Non-browser clients omit it, and the WebSocket upgrade path does not work
+/// without it.
 pub fn origin_matches_host(headers: &axum::http::HeaderMap) -> Option<bool> {
     let origin = headers.get(header::ORIGIN)?.to_str().ok()?;
     // `Origin: null` and opaque origins have no host and never match.
@@ -22,7 +22,7 @@ pub fn origin_matches_host(headers: &axum::http::HeaderMap) -> Option<bool> {
 
 /// Rejects state-changing requests whose `Origin` does not match the host.
 ///
-/// Upstream relies on `SameSite=Lax` alone; an explicit origin check costs
+/// Upstream relies on `SameSite=Lax` alone. An explicit origin check costs
 /// nothing and closes the gap for older browsers and non-browser clients.
 pub async fn origin_check(request: Request, next: Next) -> Response {
     let is_state_changing = !matches!(
@@ -44,7 +44,7 @@ pub async fn origin_check(request: Request, next: Next) -> Response {
 /// recorded, and the query string is deliberately never stored, because it
 /// can carry a key or a token.
 ///
-/// The actor is resolved here rather than read from the handler: request
+/// The actor is resolved here rather than read from the handler. Request
 /// extensions set by an extractor do not survive into the response, and a
 /// failed request (a 403, for example) is worth recording.
 pub async fn audit(State(state): State<SharedState>, request: Request, next: Next) -> Response {
@@ -54,7 +54,7 @@ pub async fn audit(State(state): State<SharedState>, request: Request, next: Nex
         method,
         Method::GET | Method::HEAD | Method::OPTIONS | Method::TRACE
     );
-    // The colour-scheme cookie is a display preference, not an action, and the
+    // The color-scheme cookie is a display preference, not an action, and the
     // access check is a POST only because it carries a query object.
     let skippable = path.ends_with("/color-scheme") || path.ends_with("/simulate");
     if !state_changing || !path.contains("/api/") || skippable {

@@ -1,6 +1,6 @@
 //! DERP configuration: where the tailnet's relays come from.
 //!
-//! Headscale's API has no DERP surface; the map is built from the config file.
+//! Headscale's API has no DERP surface. The map is built from the config file.
 //! These handlers patch `derp.*` through the same comment-preserving editor the
 //! DNS page uses.
 
@@ -68,6 +68,50 @@ pub async fn get(
     })))
 }
 
+/// Lists the relay servers the configured sources resolve to, so the UI can
+/// show which relays exist and not only where they are configured from.
+/// `GET /api/derp/relays`
+pub async fn relays(
+    State(state): State<SharedState>,
+    Auth(principal): Auth,
+) -> ApiResult<Json<Value>> {
+    principal.require(&[Capability::ReadNetwork])?;
+
+    let document = state
+        .hsconfig
+        .document()
+        .map_err(|err| ApiError::internal(format!("{err:#}")))?;
+
+    let embedded = document
+        .get_bool(&parse_path("derp.server.enabled"))
+        .unwrap_or(false)
+        .then(|| crate::derp::Embedded {
+            // Headscale's own embedded server defaults to region 999.
+            region_id: document
+                .get_str(&parse_path("derp.server.region_id"))
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(999),
+            region_code: document
+                .get_str(&parse_path("derp.server.region_code"))
+                .unwrap_or_default(),
+            region_name: document
+                .get_str(&parse_path("derp.server.region_name"))
+                .unwrap_or_default(),
+            stun_listen_addr: document
+                .get_str(&parse_path("derp.server.stun_listen_addr"))
+                .unwrap_or_default(),
+        });
+
+    let sources = crate::derp::Sources {
+        urls: document.get_string_list(&parse_path("derp.urls")),
+        paths: document.get_string_list(&parse_path("derp.paths")),
+        embedded,
+    };
+
+    let (regions, errors) = crate::derp::fetch(&sources).await;
+    Ok(Json(json!({ "regions": regions, "errors": errors })))
+}
+
 /// Updates the DERP configuration. `POST /api/derp`
 pub async fn update(
     State(state): State<SharedState>,
@@ -77,7 +121,7 @@ pub async fn update(
     principal.require(&[Capability::WriteNetwork])?;
     if !state.hsconfig.writable() {
         return Err(ApiError::forbidden(
-            "The Headscale configuration file is not writable by Sailplane",
+            "Sailplane cannot write the Headscale configuration file",
         ));
     }
 
@@ -196,7 +240,7 @@ fn dedupe(values: Vec<String>) -> Vec<String> {
 /// Validates a relay map URL. The URL must be fetchable and must not smuggle a
 /// line break into the config document.
 ///
-/// The check is explicit rather than left to the parser: the URL standard
+/// The check is explicit rather than left to the parser. The URL standard
 /// *removes* tabs and newlines while parsing, so `https://a/b\nc` parses cleanly
 /// and would be written into the config verbatim.
 fn validate_url(url: &str) -> ApiResult<()> {
@@ -232,7 +276,7 @@ pub(super) fn validate_frequency(frequency: &str) -> ApiResult<()> {
 }
 
 /// The same, optionally allowing a `d` unit. Headscale writes `oidc.expiry` in
-/// days (`180d`), while `derp.update_frequency` is a plain Go duration; the
+/// days (`180d`), while `derp.update_frequency` is a plain Go duration. The
 /// wrong shape is a config Headscale rejects.
 pub(super) fn validate_duration(value: &str, allow_days: bool) -> ApiResult<()> {
     let mut rest = value.trim();

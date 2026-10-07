@@ -13,7 +13,7 @@ use super::state::{Auth, SharedState};
 
 /// How often an idle stream emits a comment.
 ///
-/// This also bounds how long an abandoned stream lingers: a task parked on the
+/// This also bounds how long an abandoned stream lingers. A task parked on the
 /// broadcast receiver only notices a vanished client when the next write
 /// fails.
 const HEARTBEAT: Duration = Duration::from_secs(15);
@@ -52,7 +52,7 @@ pub async fn stream(
                     yield Ok(Event::default().event("changed").data(data));
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                    // The client fell behind; tell it to refetch everything
+                    // The client fell behind. Tell it to refetch everything
                     // rather than replaying a partial history.
                     tracing::debug!("live stream lagged by {skipped} events; forcing resync");
                     let resync = json!({

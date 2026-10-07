@@ -40,12 +40,47 @@ pub struct Config {
     pub oidc: Option<OidcConfig>,
 }
 
+impl Config {
+    /// The agent configuration with deployment defaults filled in.
+    ///
+    /// Derived from a snapshot rather than stored, so a saved setting rebuilds
+    /// it without a restart.
+    pub fn agent_config(&self) -> AgentConfig {
+        let mut config = self
+            .integration
+            .as_ref()
+            .and_then(|integration| integration.agent.clone())
+            .unwrap_or_else(|| AgentConfig {
+                enabled: false,
+                host_name: "sailplane-agent".into(),
+                cache_ttl: 180_000,
+                backend: AgentBackend::System,
+                socket: None,
+                executable_path: PathBuf::from("/usr/libexec/sailplane/agent"),
+                work_dir: self.server.data_path.join("agent"),
+                tailscale_netns: true,
+            });
+        if config.socket.is_none() {
+            config.socket = crate::agent::tailscale::default_socket();
+        }
+        config
+    }
+
+    /// The browser-SSH configuration. It defaults to disabled.
+    pub fn ssh_config(&self) -> SshConfig {
+        self.integration
+            .as_ref()
+            .and_then(|integration| integration.ssh.clone())
+            .unwrap_or_default()
+    }
+}
+
 /// How Sailplane reaches the Headscale HTTP API and, optionally, the Headscale
 /// configuration file on disk.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HeadscaleConfig {
-    /// Internal API base URL, e.g. `http://headscale:8080`.
+    /// Internal API base URL, for example `http://headscale:8080`.
     pub url: String,
 
     /// Public URL shown in the UI and used in registration commands. Defaults
@@ -53,7 +88,7 @@ pub struct HeadscaleConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_url: Option<String>,
 
-    /// Headscale API key. Required for OIDC, proxy auth and the agent.
+    /// Headscale API key. Necessary for OIDC, proxy auth and the agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
 
@@ -65,7 +100,7 @@ pub struct HeadscaleConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_path: Option<PathBuf>,
 
-    /// Deprecated upstream; accepted and ignored.
+    /// Deprecated upstream. Accepted and ignored.
     #[serde(default = "default_true")]
     pub config_strict: bool,
 
@@ -101,8 +136,8 @@ impl Default for HeadscaleConfig {
 }
 
 impl HeadscaleConfig {
-    /// Returns the effective public URL, falling back to the internal URL, with any trailing slash
-    /// removed.
+    /// Returns the effective public URL with any trailing slash removed. It
+    /// falls back to the internal URL when unset.
     pub fn resolved_public_url(&self) -> String {
         self.public_url
             .clone()
@@ -128,7 +163,7 @@ pub fn resolve_secret(
     field: &str,
 ) -> Result<Option<String>> {
     match (inline, path) {
-        (Some(_), Some(_)) => bail!("cannot set both `{field}` and `{field}_path`; choose one"),
+        (Some(_), Some(_)) => bail!("cannot set both `{field}` and `{field}_path`. Choose one"),
         (Some(value), None) => {
             if value.is_empty() {
                 bail!("`{field}` is empty");
@@ -189,7 +224,8 @@ impl Config {
         self.debug || env_flag("SAILPLANE_DEBUG_LOG")
     }
 
-    /// Returns the resolved cookie secret, validated to 32 characters by `ServerConfig`.
+    /// Returns the resolved cookie secret, which `ServerConfig` validates to 32
+    /// characters.
     pub fn cookie_secret(&self) -> &str {
         self.server
             .cookie_secret

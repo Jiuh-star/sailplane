@@ -34,7 +34,7 @@ impl SocketResponse {
 /// Sends one HTTP request over `socket`.
 ///
 /// `host` overrides the `Host` header. Tailscale's LocalAPI rejects any other
-/// value; hyperlocal would otherwise send the URI authority.
+/// value, and hyperlocal would otherwise send the URI authority.
 pub async fn request_from(
     socket: &Path,
     method: &str,

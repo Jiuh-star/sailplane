@@ -25,7 +25,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
-// CodeMirror is a few hundred kilobytes; only the ACL page needs it.
+// CodeMirror is a few hundred kilobytes. Only the ACL page uses it.
 const JsonEditor = defineAsyncComponent(() => import('@/components/shared/JsonEditor.vue'))
 const JsonDiff = defineAsyncComponent(() => import('@/components/shared/JsonDiff.vue'))
 import { useSession } from '@/composables/useSession'
@@ -52,7 +52,7 @@ const { t } = useI18n()
 const toast = useToast()
 const { config } = useSession()
 
-// Older servers omit the flag; when missing, keep grants editable.
+// Older servers omit the flag. When it is missing, keep grants editable.
 const grantsSupported = computed(() => config.value.grantsSupported !== false)
 
 const data = ref<AclResponse | null>(null)
@@ -64,7 +64,7 @@ const loading = ref(true)
 const saving = ref(false)
 const failure = ref<string | null>(null)
 const dirty = ref(false)
-const tab = ref('rules')
+const tab = ref('access')
 
 // --- Rule dialogs ---
 const ruleOpen = ref(false)
@@ -115,8 +115,12 @@ const sshTestsText = ref('')
 const testsError = ref<string | null>(null)
 const sshTestsError = ref<string | null>(null)
 
-/** The structured policy as loaded, re-serialised the same way edits are. */
+/** The structured policy as loaded, re-serialized the same way edits are. */
 const savedSnapshot = ref('')
+/** The `parsed` object from the initial load. The watcher skips it, so the
+ *  file tab shows the policy exactly as Headscale stores it — comments and
+ *  all — until the first structured edit. */
+let loadedParsed: ParsedPolicy | null = null
 
 async function load() {
   try {
@@ -124,6 +128,7 @@ async function load() {
     data.value = response
     policyText.value = response.policy
     savedPolicy.value = response.policy
+    loadedParsed = response.parsed
     parsed.value = response.parsed
     savedSnapshot.value = response.parsed ? JSON.stringify(response.parsed, null, 2) : ''
     testsText.value = response.parsed?.tests ? JSON.stringify(response.parsed.tests, null, 2) : ''
@@ -149,9 +154,10 @@ const parseError = computed(() => data.value?.parseError ?? null)
 
 watch(parsed, (value) => {
   // Any structured edit regenerates the policy text. Comparing against the
-  // snapshot, rather than setting a flag, keeps load and save from marking the
-  // page dirty; an edit typed back out also stops counting as a change.
-  if (!value) return
+  // snapshot, rather than setting a flag, stops load and save from marking the
+  // page dirty. An edit typed back out does not count as a change. The code
+  // skips the loaded object so the file tab starts from the stored text.
+  if (!value || value === loadedParsed) return
   policyText.value = JSON.stringify(value, null, 2)
   dirty.value = policyText.value !== savedSnapshot.value
 })
@@ -169,11 +175,29 @@ const grants = computed<GrantRule[]>(() => {
   return Array.isArray(value) ? value : []
 })
 
-/** True when `grants` exists but is not the structured array the editor needs. */
+/** True when `grants` exists but is not the structured array the editor expects. */
 const grantsRaw = computed(() => {
   const value = parsed.value?.grants
   return value !== undefined && !Array.isArray(value)
 })
+
+/** Both access syntaxes in one policy. This is legal, but a reader can read the
+ *  two sets of rules as one and make a mistake. The editor warns before a save
+ *  can cause this. */
+const bothSyntaxes = computed(() => acls.value.length > 0 && grants.value.length > 0)
+
+/** Capability names in a grant's `app`, for the rule list. The dialog does not
+ *  edit them yet. The file tab is the way to change a capability. */
+function capabilitiesOf(rule: GrantRule): string[] {
+  const app = rule.app
+  if (isPlainObject(app)) return Object.keys(app)
+  if (Array.isArray(app)) {
+    return app
+      .map((entry) => (isPlainObject(entry) ? String(entry.cap ?? '') : ''))
+      .filter((cap) => cap.length > 0)
+  }
+  return []
+}
 
 const autoApproverRoutes = computed(() => parseApproverRoutes(parsed.value?.autoApprovers))
 const autoApproverExitNodes = computed(() => parseApproverExitNodes(parsed.value?.autoApprovers))
@@ -198,7 +222,10 @@ async function save() {
   if (!parsed.value && !policyText.value.trim()) return
   saving.value = true
   try {
-    const source = parsed.value ? JSON.stringify(parsed.value) : policyText.value
+    // `policyText` is the one place the working copy lives: the watcher
+    // regenerates it after a structured edit, and the file tab writes to it
+    // directly. Sending anything else drops the edits from the file tab.
+    const source = policyText.value
     const result = await api.acl.set(source)
     toast.success(t('acls.saved'))
     if (result.warnings?.length) {
@@ -216,6 +243,13 @@ async function save() {
 
 function discard() {
   void load()
+}
+
+/** The file tab's editor writes the working copy directly, so a keystroke both
+ *  records the text and marks the page dirty. */
+function onFileInput(value: string) {
+  policyText.value = value
+  dirty.value = true
 }
 
 // --- Rules ---
@@ -633,7 +667,7 @@ function splitList(input: string): string[] {
     .filter(Boolean)
 }
 
-/** Headscale requires `host:port`; the editor accepts bare hosts. */
+/** Headscale expects `host:port`. The editor accepts bare hosts. */
 function withDefaultPort(destination: string): string {
   if (!destination || destination.includes(':')) return destination
   return `${destination}:*`
@@ -693,20 +727,31 @@ function withDefaultPort(destination: string): string {
 
       <Tabs v-model="tab">
         <TabsList>
-          <TabsTrigger value="rules">{{ t('acls.tabs.rules') }}</TabsTrigger>
+          <TabsTrigger value="access">{{ t('acls.tabs.access') }}</TabsTrigger>
           <TabsTrigger value="tags">{{ t('acls.tabs.tags') }}</TabsTrigger>
-          <TabsTrigger v-if="grantsSupported" value="grants">{{ t('acls.tabs.grants') }}</TabsTrigger>
           <TabsTrigger value="advanced">{{ t('acls.tabs.advanced') }}</TabsTrigger>
           <TabsTrigger value="file">{{ t('acls.tabs.file') }}</TabsTrigger>
-          <TabsTrigger value="diff">{{ t('acls.tabs.diff') }}</TabsTrigger>
           <TabsTrigger value="check">{{ t('acls.tabs.check') }}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="rules" class="space-y-4 pt-4">
+        <TabsContent value="access" class="space-y-4 pt-4">
           <Alert v-if="hasComments" variant="warning">
             <AlertTitle>{{ t('acls.commentsLost.title') }}</AlertTitle>
             <AlertDescription>{{ t('acls.commentsLost.body') }}</AlertDescription>
           </Alert>
+
+          <Alert v-if="bothSyntaxes" variant="warning">
+            <TriangleAlert />
+            <AlertTitle>{{ t('acls.bothSyntax.title') }}</AlertTitle>
+            <AlertDescription>{{ t('acls.bothSyntax.body') }}</AlertDescription>
+          </Alert>
+
+          <Alert v-if="grantsSupported && grantsRaw" variant="warning">
+            <AlertTitle>{{ t('acls.grants.rawTitle') }}</AlertTitle>
+            <AlertDescription>{{ t('acls.grants.rawBody') }}</AlertDescription>
+          </Alert>
+
+          <p class="text-muted-foreground text-sm">{{ t('acls.access.intro') }}</p>
 
           <Card>
             <CardHeader class="flex-row items-center justify-between">
@@ -748,6 +793,55 @@ function withDefaultPort(destination: string): string {
             </CardContent>
           </Card>
 
+          <Card v-if="grantsSupported">
+            <CardHeader class="flex-row items-center justify-between">
+              <CardTitle class="text-base">{{ t('acls.grants.title') }}</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                :disabled="!writable || grantsRaw"
+                @click="editGrant(null)"
+              >
+                {{ t('acls.grants.add') }}
+              </Button>
+            </CardHeader>
+            <CardContent class="space-y-2">
+              <template v-if="!grantsRaw">
+                <EmptyState v-if="!grants.length" :title="t('acls.grants.empty')" />
+                <div
+                  v-for="(rule, index) in grants"
+                  :key="index"
+                  class="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm"
+                >
+                  <Badge v-for="src in rule.src" :key="src" variant="secondary">{{ src }}</Badge>
+                  <span class="text-muted-foreground">→</span>
+                  <Badge v-for="dst in rule.dst" :key="dst" variant="outline">{{ dst }}</Badge>
+                  <Badge v-for="ip in rule.ip ?? []" :key="ip" variant="outline">{{ ip }}</Badge>
+                  <Badge v-for="cap in capabilitiesOf(rule)" :key="cap" variant="secondary">
+                    {{ cap }}
+                  </Badge>
+                  <Badge v-for="posture in rule.srcPosture ?? []" :key="posture" variant="secondary">
+                    {{ posture }}
+                  </Badge>
+                  <span class="ml-auto flex gap-1">
+                    <Button size="sm" variant="ghost" :disabled="!writable" @click="editGrant(index)">
+                      {{ t('common.edit') }}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      class="text-destructive"
+                      :disabled="!writable"
+                      @click="removeGrant(index)"
+                    >
+                      {{ t('common.delete') }}
+                    </Button>
+                  </span>
+                </div>
+              </template>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader class="flex-row items-center justify-between">
               <CardTitle class="text-base">{{ t('acls.ssh.title') }}</CardTitle>
@@ -781,40 +875,6 @@ function withDefaultPort(destination: string): string {
                     class="text-destructive"
                     :disabled="!writable"
                     @click="removeSsh(index)"
-                  >
-                    {{ t('common.delete') }}
-                  </Button>
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader class="flex-row items-center justify-between">
-              <CardTitle class="text-base">{{ t('acls.hosts.title') }}</CardTitle>
-              <Button size="sm" variant="outline" :disabled="!writable" @click="editHost(null)">
-                {{ t('acls.hosts.add') }}
-              </Button>
-            </CardHeader>
-            <CardContent class="space-y-2">
-              <EmptyState v-if="!hosts.length" :title="t('acls.hosts.empty')" />
-              <div
-                v-for="[name, value] in hosts"
-                :key="name"
-                class="flex items-center gap-3 rounded-md border p-3 text-sm"
-              >
-                <span class="font-medium">{{ name }}</span>
-                <span class="text-muted-foreground font-mono text-xs">{{ value }}</span>
-                <span class="ml-auto flex gap-1">
-                  <Button size="sm" variant="ghost" :disabled="!writable" @click="editHost(name)">
-                    {{ t('common.edit') }}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="text-destructive"
-                    :disabled="!writable"
-                    @click="removeHost(name)"
                   >
                     {{ t('common.delete') }}
                   </Button>
@@ -909,42 +969,25 @@ function withDefaultPort(destination: string): string {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent v-if="grantsSupported" value="grants" class="space-y-4 pt-4">
-          <Alert v-if="grantsRaw" variant="warning">
-            <AlertTitle>{{ t('acls.grants.rawTitle') }}</AlertTitle>
-            <AlertDescription>{{ t('acls.grants.rawBody') }}</AlertDescription>
-          </Alert>
 
           <Card>
             <CardHeader class="flex-row items-center justify-between">
-              <CardTitle class="text-base">{{ t('acls.grants.title') }}</CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                :disabled="!writable || grantsRaw"
-                @click="editGrant(null)"
-              >
-                {{ t('acls.grants.add') }}
+              <CardTitle class="text-base">{{ t('acls.hosts.title') }}</CardTitle>
+              <Button size="sm" variant="outline" :disabled="!writable" @click="editHost(null)">
+                {{ t('acls.hosts.add') }}
               </Button>
             </CardHeader>
             <CardContent class="space-y-2">
-              <EmptyState v-if="!grants.length" :title="t('acls.grants.empty')" />
+              <EmptyState v-if="!hosts.length" :title="t('acls.hosts.empty')" />
               <div
-                v-for="(rule, index) in grants"
-                :key="index"
-                class="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm"
+                v-for="[name, value] in hosts"
+                :key="name"
+                class="flex items-center gap-3 rounded-md border p-3 text-sm"
               >
-                <Badge v-for="src in rule.src" :key="src" variant="secondary">{{ src }}</Badge>
-                <span class="text-muted-foreground">→</span>
-                <Badge v-for="dst in rule.dst" :key="dst" variant="outline">{{ dst }}</Badge>
-                <Badge v-for="ip in rule.ip ?? []" :key="ip" variant="outline">{{ ip }}</Badge>
-                <Badge v-for="posture in rule.srcPosture ?? []" :key="posture" variant="secondary">
-                  {{ posture }}
-                </Badge>
+                <span class="font-medium">{{ name }}</span>
+                <span class="text-muted-foreground font-mono text-xs">{{ value }}</span>
                 <span class="ml-auto flex gap-1">
-                  <Button size="sm" variant="ghost" :disabled="!writable" @click="editGrant(index)">
+                  <Button size="sm" variant="ghost" :disabled="!writable" @click="editHost(name)">
                     {{ t('common.edit') }}
                   </Button>
                   <Button
@@ -952,7 +995,7 @@ function withDefaultPort(destination: string): string {
                     variant="ghost"
                     class="text-destructive"
                     :disabled="!writable"
-                    @click="removeGrant(index)"
+                    @click="removeHost(name)"
                   >
                     {{ t('common.delete') }}
                   </Button>
@@ -1178,14 +1221,9 @@ function withDefaultPort(destination: string): string {
 
         <TabsContent value="file" class="space-y-4 pt-4">
           <JsonEditor
-            :model-value="parsed ? JSON.stringify(parsed, null, 2) : policyText"
+            :model-value="policyText"
             :readonly="!writable"
-            @update:model-value="
-              (value) => {
-                policyText = value
-                dirty = true
-              }
-            "
+            @update:model-value="onFileInput"
           />
           <p class="text-muted-foreground text-xs">
             <i18n-t keypath="acls.file.hint" tag="span">
@@ -1194,9 +1232,7 @@ function withDefaultPort(destination: string): string {
               </template>
             </i18n-t>
           </p>
-        </TabsContent>
 
-        <TabsContent value="diff" class="space-y-4 pt-4">
           <Card>
             <CardHeader>
               <CardTitle class="text-base">{{ t('acls.diff.title') }}</CardTitle>
@@ -1209,11 +1245,7 @@ function withDefaultPort(destination: string): string {
               />
               <!-- A diff against the saved policy, not a dump
                    of the whole document. -->
-              <JsonDiff
-                v-else
-                :original="savedPolicy"
-                :modified="parsed ? JSON.stringify(parsed, null, 2) : policyText"
-              />
+              <JsonDiff v-else :original="savedPolicy" :modified="policyText" />
             </CardContent>
           </Card>
         </TabsContent>

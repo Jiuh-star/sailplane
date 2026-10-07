@@ -1,7 +1,7 @@
 export default {
   title: 'Topology',
   description:
-    'How the tailnet is wired: which identities the policy connects, which networks rest on a single node, and where each machine’s relay is.',
+    'How the tailnet is connected: which identities the policy connects, which networks rest on a single node, and where each machine’s relay is.',
   loadFailed: 'Could not load the topology',
   noRules: 'The policy has no rules',
   noRulesDescription: 'With no ACL rules, nothing in this tailnet can reach anything.',
@@ -13,12 +13,12 @@ export default {
   },
   sole: {
     title: 'One node is the only way through',
-    body: '{routes} is advertised by a single machine. If that machine goes offline, the network stays unreachable until another node advertises the route.',
+    body: 'A single machine advertises {routes}. If that machine goes offline, the network stays unreachable until another node advertises the route.',
   },
   graph: {
     title: 'Access graph',
     description:
-      'Each line is a rule, labelled with the ports it allows. Dotted lines are Tailscale SSH rules, which apply to port 22 only.',
+      'Every line is a rule, a route, an approval or a relay. The color tells them apart. Select a line for the rule behind it.',
     label: 'Access graph',
     machineCount: '{count} machine | {count} machines',
     ruleNumber: 'rule {index}',
@@ -26,11 +26,21 @@ export default {
     reach: 'reaches {to} machines from {from}',
     users: 'login names {users}',
     hint: 'Select a line for the rule behind it.',
-    acl: 'ACL',
-    grant: 'Grant',
-    ssh: 'SSH',
+    internet: 'Internet',
+    relayRegion: 'Relay region',
+    edge: {
+      acl: 'ACL',
+      grant: 'Grant',
+      cap: 'Capability',
+      ssh: 'SSH',
+      route: 'Route',
+      exit: 'Exit node',
+      relay: 'Relay',
+      approval: 'Auto-approve',
+    },
     legendAcl: '{count} ACL rules',
     legendGrant: '{count} grant rules',
+    legendCap: '{count} capability grants',
     legendSsh: '{count} SSH rules',
   },
   policy: {
@@ -58,7 +68,7 @@ export default {
   relays: {
     title: 'Relay regions',
     description:
-      'Each machine keeps a connection to its home relay and uses it when no direct path exists. This comes from the netmap the agent reports.',
+      'Each machine keeps a connection to its home relay and uses it when no direct path exists. This comes from the netmap that the agent reports.',
     region: 'Region {id}',
     unknown: 'No relay reported',
     count: '{count} machines',

@@ -2,10 +2,10 @@
 
 use chrono::{DateTime, Utc};
 
-/// Parses an RFC 3339 timestamp as emitted by Headscale.
+/// Parses an RFC 3339 timestamp that Headscale emits.
 ///
-/// Headscale uses Go's zero time (`0001-01-01T00:00:00Z`) to mean "never";
-/// it parses as far in the past.
+/// Headscale uses Go's zero time (`0001-01-01T00:00:00Z`) to mean "never".
+/// It parses as far in the past.
 pub fn parse_rfc3339(input: &str) -> Option<DateTime<Utc>> {
     if input.is_empty() {
         return None;

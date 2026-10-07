@@ -122,7 +122,7 @@ export interface ConfigView {
   agentBackend: string
   debug: boolean
   version: string
-  /** Absent on older servers; treat as supported when missing. */
+  /** Absent on older servers. When missing, treat it as supported. */
   grantsSupported?: boolean
   /** True until first-run onboarding completes. */
   setupRequired: boolean
@@ -153,7 +153,7 @@ export interface SessionView {
 }
 
 export interface StatusTag {
-  /** Stable identifier for translation; absent on older servers. */
+  /** Stable identifier for translation. Absent on older servers. */
   key?: string
   /** English fallback computed by the server. */
   label: string
@@ -227,6 +227,15 @@ export interface AuditEntry {
   path: string
   status: number
   detail: string | null
+}
+
+/** One page of the audit log, newest first. */
+export interface AuditPage {
+  entries: AuditEntry[]
+  total: number
+  page: number
+  per_page: number
+  pages: number
 }
 
 /** A Headscale API key. Only the masked prefix is retrievable. */
@@ -323,7 +332,8 @@ export interface GrantRule {
   dst: string[]
   ip?: string[]
   via?: string[]
-  app?: unknown[]
+  /** Application capabilities: a map of capability name to arguments. */
+  app?: unknown
   srcPosture?: string[]
   /** Unknown per-rule keys round-trip here. */
   [key: string]: unknown
@@ -349,7 +359,7 @@ export interface ParsedPolicy {
   hosts: Record<string, string>
   groups: Record<string, string[]>
   tagOwners: Record<string, string[]>
-  /** May be a raw non-array value in a malformed policy; guard before use. */
+  /** Can be a raw non-array value in a malformed policy. Guard before use. */
   grants?: GrantRule[]
   autoApprovers?: AutoApprovers
   nodeAttrs?: NodeAttr[]
@@ -357,11 +367,11 @@ export interface ParsedPolicy {
   tests?: unknown[]
   sshTests?: unknown[]
   randomizeClientPort?: boolean
-  /** Unknown top-level keys are flattened here, so saving never drops them. */
+  /** Unknown top-level keys stay here, so a save never drops them. */
   [key: string]: unknown
 }
 
-/** Everything a policy selector may name, for the access check's suggestions. */
+/** Everything a policy selector can name, for the access check suggestions. */
 export interface AclSelectors {
   users: string[]
   groups: string[]
@@ -403,7 +413,7 @@ export interface AclRuleOutcome {
   action: string
   src: string[]
   dst: string[]
-  /** Present on grant rules only: the protocols and ports they allow. */
+  /** Present on grant rules only: the protocols and ports that the rule names. */
   ip?: string[]
   matched_src: string | null
   matched_dst: string | null
@@ -434,7 +444,7 @@ export interface AccessReport {
 
 export interface AccessQuery {
   src: string
-  /** One or more destinations; each is evaluated on its own. */
+  /** One or more destinations. The engine evaluates each one on its own. */
   dsts: string[]
   port: number
   protocol: string
@@ -442,25 +452,39 @@ export interface AccessQuery {
   policy?: string
 }
 
-/** One identity a rule names, with what it resolves to. */
-export interface TopologyIdentity {
-  selector: string
-  kind: 'any' | 'tag' | 'group' | 'autogroup' | 'address' | 'user' | 'host'
-  machines: number
-  sample: string[]
+/**
+ * One node in the topology graph. A node is a policy selector, a machine that
+ * carries infrastructure, a routed CIDR, the internet behind an exit node, or a
+ * relay region. Only the fields that fit a kind are present.
+ */
+export interface TopologyNode {
+  id: string
+  kind: 'selector' | 'machine' | 'cidr' | 'exit' | 'region'
+  label: string
+  /** Selector columns: sources on the left, destinations next. */
+  role?: 'source' | 'destination'
+  selector_kind?: 'any' | 'tag' | 'group' | 'autogroup' | 'address' | 'user' | 'host'
+  machines?: number
+  sample?: string[]
+  attrs?: string[]
+  online?: boolean
+  approved?: boolean
+  exit_node?: boolean
+  sole?: boolean
 }
 
-/** One rule, seen as an edge between two identities. */
+/** One edge between two topology nodes. */
 export interface TopologyEdge {
-  rule: number
-  kind: 'acl' | 'grant' | 'ssh'
-  action: string
-  src: string
-  dst: string
-  ports: string
-  src_machines: number
-  dst_machines: number
-  users: string[]
+  id: string
+  source: string
+  target: string
+  kind: 'acl' | 'grant' | 'cap' | 'ssh' | 'route' | 'exit' | 'relay' | 'approval'
+  label: string
+  rule?: number
+  action?: string
+  users?: string[]
+  src_machines?: number
+  dst_machines?: number
 }
 
 export interface TopologyRoute {
@@ -477,7 +501,7 @@ export interface TopologyRelay {
   machines: { id: string; name: string; online: boolean }[]
 }
 
-/** Policy keys that do not form edges. Each value may be absent or null. */
+/** Policy keys that do not form edges. Each value can be absent or null. */
 export interface TopologyPolicy {
   autoApprovers?: AutoApprovers | null
   nodeAttrs?: NodeAttr[] | null
@@ -488,7 +512,7 @@ export interface TopologyPolicy {
 }
 
 export interface TopologyResponse {
-  identities: TopologyIdentity[]
+  nodes: TopologyNode[]
   edges: TopologyEdge[]
   routes: TopologyRoute[]
   relays: TopologyRelay[]
@@ -496,7 +520,7 @@ export interface TopologyResponse {
   totals: { machines: number; online: number; rules: number }
 }
 
-/** Headscale's own OIDC settings, as the form needs them. */
+/** Headscale's own OIDC settings, as the form uses them. */
 export interface OidcSettings {
   configured: boolean
   issuer: string
@@ -517,6 +541,25 @@ export interface DerpConfig {
   autoUpdateEnabled: boolean
   updateFrequency: string
   serverEnabled: boolean
+}
+
+/** One relay server inside a region of the resolved DERP map. */
+export interface DerpRelayServer {
+  name: string
+  hostname: string
+  stun_port?: number
+  derp_port?: number
+  ipv4?: string
+  ipv6?: string
+}
+
+/** One relay region, resolved from the configured DERP map sources. */
+export interface DerpRegion {
+  id: number
+  code: string
+  name: string
+  source: string
+  nodes: DerpRelayServer[]
 }
 
 export interface DnsRecord {
@@ -558,7 +601,7 @@ export interface RestrictionsResponse {
   access: { read: boolean; write: boolean; writable: boolean }
 }
 
-/** How a setting value is edited. */
+/** How to edit a setting value. */
 export type SettingKind = 'text' | 'number' | 'bool' | 'path' | 'list' | 'url'
 
 /** Where the effective value comes from. */
@@ -573,9 +616,9 @@ export interface SettingsEntry {
   kind: SettingKind
   secret: boolean
   restartRequired: boolean
-  /** Effective value. Always null for secrets, which are never returned. */
+  /** Effective value. It is always null for secrets, which the server never returns. */
   value: unknown
-  /** True when a value is stored. For secrets, the value itself stays hidden. */
+  /** True when a stored value exists. For secrets, the value itself stays hidden. */
   set: boolean
   source: SettingSource
 }
@@ -584,7 +627,7 @@ export interface SettingsResponse {
   settings: SettingsEntry[]
 }
 
-/** First-run onboarding state. `GET /api/setup/status` needs no session. */
+/** First-run onboarding state. `GET /api/setup/status` operates without a session. */
 export interface SetupStatus {
   required: boolean
   headscaleUrl: string
@@ -673,6 +716,7 @@ export const api = {
       update_frequency: string
       server_enabled: boolean
     }>) => post<{ ok: boolean; warning: string | null }>('api/derp', patch),
+    relays: () => get<{ regions: DerpRegion[]; errors: string[] }>('api/derp/relays'),
   },
 
   dns: {
@@ -713,10 +757,8 @@ export const api = {
   },
 
   audit: {
-    list: (before?: number) =>
-      get<{ entries: AuditEntry[]; next: number | null }>(
-        before === undefined ? 'api/audit' : `api/audit?before=${before}`,
-      ),
+    list: (page = 1, perPage = 50) =>
+      get<AuditPage>(`api/audit?page=${page}&per_page=${perPage}`),
   },
 
   restrictions: {
@@ -742,7 +784,7 @@ export const api = {
 
   setup: {
     status: () => get<SetupStatus>('api/setup/status'),
-    /** The setup token goes in `x-setup-token`; loopback callers may omit it. */
+    /** The setup token goes in `x-setup-token`. A loopback caller can omit it. */
     testHeadscale: (url: string, apiKey: string, token?: string) =>
       post<{ ok: boolean; version: string | null }>(
         'api/setup/test-headscale',

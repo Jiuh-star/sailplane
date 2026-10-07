@@ -1,7 +1,7 @@
 /**
- * Live data via server-sent events. The server pushes a version per resource;
- * views watch their version and refetch only then. A dropped connection retries
- * with backoff, and a `resync` frame bumps every version.
+ * Live data through server-sent events. The server pushes a version for each
+ * resource. Views watch their version and refetch only then. A dropped
+ * connection retries with backoff, and a `resync` frame bumps every version.
  */
 
 import { onScopeDispose, readonly, ref, watch } from 'vue'
@@ -28,12 +28,12 @@ function applyVersions(payload: string, force: boolean) {
     for (const key of ['nodes', 'users'] as const) {
       const next = parsed[key]
       if (typeof next !== 'number') continue
-      // A `resync` frame means the client may hold stale data: bump past
+      // A `resync` frame means the client can hold stale data: bump past
       // whatever the server reports so every watcher fires.
       versions.value[key] = force ? Math.max(versions.value[key], next) + 1 : next
     }
   } catch {
-    // A malformed frame is not worth tearing the stream down for.
+    // A malformed frame does not justify closing the stream.
   }
 }
 
@@ -69,7 +69,7 @@ function connect() {
       }
       versions.value[change.resource] = change.version
     } catch {
-      // A malformed frame is not worth tearing the stream down for.
+      // A malformed frame does not justify closing the stream.
     }
   })
 
@@ -81,7 +81,7 @@ function connect() {
   })
 }
 
-/** Starts the shared stream; safe to call from every component. */
+/** Starts the shared stream. Safe to call from every component. */
 export function ensureLiveStream() {
   if (started) return
   started = true
@@ -89,8 +89,8 @@ export function ensureLiveStream() {
 }
 
 /**
- * Starts the stream for the lifetime of the app shell. Pages that watch no
- * resource still need it for the connection status in the footer.
+ * Starts the stream for the lifetime of the app shell. A page that watches no
+ * resource still uses it for the connection status in the footer.
  */
 export function startLiveStream() {
   ensureLiveStream()
@@ -109,7 +109,7 @@ export function stopLiveStream() {
 
 /**
  * Runs `onChange` once immediately and again whenever any of the watched
- * resources changes version. Automatically stops when the component unmounts.
+ * resources changes version. When the component unmounts, it stops automatically.
  */
 export function useLiveResource(
   resources: ResourceKey | ResourceKey[],

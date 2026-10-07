@@ -70,7 +70,7 @@ const label = computed(
   () => props.account?.name ?? props.headscaleUser?.name ?? t('users.userFallback'),
 )
 
-/** Known role enums get translated copy; anything else keeps the API label. */
+/** Known role enums get translated copy. Anything else keeps the API label. */
 function roleLabel(role: { value: string; label: string }) {
   const key = `users.roles.${role.value}.label`
   return te(key) ? t(key) : role.label
@@ -81,7 +81,7 @@ function roleDescription(role: { value: string; label: string; description: stri
   return te(key) ? t(key) : role.description
 }
 
-/** All Headscale users are candidates; the server rejects one another account already claims. */
+/** All Headscale users are candidates. The server rejects a user that another account already claims. */
 const availableUsers = computed(() => props.headscaleUsers ?? [])
 
 async function run(action: () => Promise<unknown>, message: string) {

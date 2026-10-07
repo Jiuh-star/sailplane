@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * Side-by-side diff of the saved policy against the working copy. Uses
- * CodeMirror's merge view; the ACL page lazy-loads it.
+ * Side-by-side diff of the saved policy against the working copy. It uses
+ * CodeMirror's merge view. The ACL page lazy-loads it.
  */
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { EditorState, type Extension } from '@codemirror/state'
@@ -14,7 +14,7 @@ import { oneDark } from '@codemirror/theme-one-dark'
 const props = defineProps<{
   /** The policy as Headscale has it. */
   original: string
-  /** The policy as edited in the form. */
+  /** The policy as the form shows it. */
   modified: string
 }>()
 
@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
   view = null
 })
 
-// Rebuild whenever either side changes. MergeView cannot reconfigure its
+// When either side changes, rebuild. MergeView cannot reconfigure its
 // document pairs in place.
 watch(
   () => [props.original, props.modified],

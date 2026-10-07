@@ -10,20 +10,26 @@ export default {
   },
   readOnlyPolicy: {
     title: '只读策略',
-    body: 'Headscale 正在从文件读取策略。请在 Headscale 配置中设置 {mode}，即可在此处编辑。',
+    body: 'Headscale 从文件读取策略。请在 Headscale 配置中设置 {mode}，即可在此处编辑。',
   },
   parseError: {
     title: '无法解析策略',
     body: '{error}。请在“编辑文件”标签页中修复。',
   },
   tabs: {
-    rules: '规则',
+    access: '规则与授权',
     tags: '标签与分组',
-    grants: 'Grants 规则',
     advanced: '高级',
     file: '编辑文件',
-    diff: '预览更改',
     check: '连通性测试',
+  },
+  access: {
+    intro:
+      '访问规则（acls）与授权规则（grants）是同一种访问控制的两种语法。grants 是较新的写法，支持基于端口的授权与应用程序能力。两者可以并存，但为了清晰起见，建议统一使用其中一种。',
+  },
+  bothSyntax: {
+    title: '同时存在两种访问语法',
+    body: '策略中既有 acls 又有 grants。两者都会生效，但放在一起容易误读。建议合并为其中一种。',
   },
   check: {
     title: '这个来源能访问那个目标吗？',

@@ -1,6 +1,6 @@
 //! Headscale's own OpenID Connect settings.
 //!
-//! These decide how devices authenticate to the control server and live in
+//! These decide how devices authenticate to the control server. They live in
 //! Headscale's config file, separate from the `oidc` block in Sailplane's own
 //! config, which decides how people sign in to this UI. The client secret is
 //! write-only: it is stored, never read back.
@@ -23,7 +23,7 @@ pub struct OidcRequest {
     issuer: Option<String>,
     #[serde(default)]
     client_id: Option<String>,
-    /// A value replaces the secret; the secret is never returned.
+    /// A value replaces the secret. The secret is never returned.
     #[serde(default)]
     client_secret: Option<String>,
     #[serde(default)]
@@ -67,7 +67,7 @@ pub async fn get(
             "clientSecretSet": !secret.is_empty(),
             "clientSecretPath": secret_path,
             "scope": document.get_string_list(&parse_path("oidc.scope")),
-            // Headscale removed this key; while it is present the server will
+            // Headscale removed this key. While it is present the server will
             // not start, so the UI offers to delete it.
             "legacyExpiry": !get("oidc.expiry").is_empty(),
             "useExpiryFromToken": document
@@ -99,7 +99,7 @@ pub async fn update(
     principal.require(&[Capability::WriteNetwork])?;
     if !state.hsconfig.writable() {
         return Err(ApiError::forbidden(
-            "The Headscale configuration file is not writable by Sailplane",
+            "Sailplane cannot write the Headscale configuration file",
         ));
     }
 
@@ -117,7 +117,7 @@ pub async fn update(
 
     if let Some(secret) = request.client_secret {
         if secret.is_empty() {
-            // Clearing the secret is legitimate: a deployment may switch to
+            // Clearing the secret is legitimate: a deployment can switch to
             // `client_secret_path` or a public client.
             changes.push((parse_path("oidc.client_secret"), None));
         } else {
@@ -266,7 +266,7 @@ async fn unroutable_provider(
         return None;
     }
 
-    // The switch may be part of this same request.
+    // The switch can be part of this same request.
     let required = match changed("only_start_if_oidc_is_available") {
         Some(Some(Value::Bool(value))) => value,
         _ => document
@@ -365,9 +365,9 @@ fn validate_token(label: &str, value: &str) -> ApiResult<()> {
     Ok(())
 }
 
-/// Validates a secret. A secret may contain almost anything but not a line
-/// break: it lands in a YAML document, and the editor's quoting is the second
-/// line of defence.
+/// Validates a secret. A secret can contain almost anything but not a line
+/// break. It lands in a YAML document, and the editor's quoting is the second
+/// line of defense.
 fn validate_secret(value: &str) -> ApiResult<()> {
     if has_control_characters(value) {
         return Err(ApiError::bad_request(

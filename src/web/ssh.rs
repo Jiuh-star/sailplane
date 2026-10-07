@@ -1,6 +1,6 @@
 //! Browser SSH endpoints.
 //!
-//! The browser connects a terminal over a WebSocket; the server opens a real
+//! The browser connects a terminal over a WebSocket. The server opens a real
 //! SSH session to the machine and pumps bytes between the two. See `crate::ssh`
 //! for why the client lives on the server rather than in the tab.
 
@@ -26,7 +26,7 @@ pub struct ConnectQuery {
 }
 
 /// The bridge reaches the target with the *server's* tailnet credentials, so
-/// the connecting user is never authenticated there. Access is therefore gated
+/// the connecting user is never authenticated there. Access is thus gated
 /// like any other machine-scoped action, not on read access alone.
 fn require_access(principal: &Principal, node: &Machine) -> Result<(), ApiError> {
     if !principal.has(Capability::ReadMachines) {
@@ -43,7 +43,7 @@ fn require_access(principal: &Principal, node: &Machine) -> Result<(), ApiError>
     Ok(())
 }
 
-/// Returns what the terminal page needs before connecting. `GET /api/ssh/{id}`
+/// Returns the data necessary for the terminal page before it connects. `GET /api/ssh/{id}`
 pub async fn info(
     State(state): State<SharedState>,
     Auth(principal): Auth,
@@ -62,7 +62,28 @@ pub async fn info(
     let view = super::presentation::MachineView::build(node, host_info.get(&node.node_key));
 
     let service = &state.ssh;
-    let available = service.is_enabled() && view.ipv4.is_some();
+
+    // Why a session cannot start, as a code the UI turns into localized,
+    // actionable guidance. A `reason` string alone is English-only and cannot
+    // say *how* to enable the feature. `None` means SSH is ready.
+    let reason_code = if !service.configured() {
+        Some("disabled")
+    } else if service.disabled_reason().is_some() {
+        Some("proxy")
+    } else if !state
+        .headscale
+        .capabilities()
+        .browser_ssh_supported(&state.headscale.version())
+    {
+        Some("version")
+    } else if !node.online {
+        Some("offline")
+    } else if view.ipv4.is_none() {
+        Some("no_ipv4")
+    } else {
+        None
+    };
+    let available = reason_code.is_none();
 
     Ok(Json(json!({
         "machine": {
@@ -74,14 +95,17 @@ pub async fn info(
             "sshHostKeys": view.ssh_host_keys,
         },
         "available": available,
+        "enabled": service.configured(),
+        "reasonCode": reason_code,
+        // The detail behind the code, for operators who want the exact cause.
         "reason": service
             .disabled_reason()
-            .map(str::to_string)
+            .or_else(|| (!node.online).then(|| "This machine is offline.".into()))
             .or_else(|| view.ipv4.is_none().then(|| "This machine has no IPv4 address to reach.".into())),
         "defaultUser": service.default_username(),
         "port": service.port(),
-        // Tailscale SSH has no host keys, and an ordinary target was chosen by
-        // the operator, so the bridge accepts whatever key the machine presents.
+        // Tailscale SSH has no host keys, and the operator chose an ordinary
+        // target, so the bridge accepts whatever key the machine presents.
         "hostKeyVerified": false,
     })))
 }
@@ -109,7 +133,7 @@ pub async fn connect(
             state
                 .ssh
                 .disabled_reason()
-                .unwrap_or("Browser SSH is not enabled"),
+                .unwrap_or_else(|| "Browser SSH is not enabled".to_string()),
         ));
     }
 
@@ -133,7 +157,7 @@ pub async fn connect(
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .map(str::to_string)
-        .or_else(|| state.ssh.default_username().map(str::to_string))
+        .or_else(|| state.ssh.default_username())
         .ok_or_else(|| {
             ApiError::bad_request("No SSH user was given and no default is configured")
         })?;
@@ -157,9 +181,9 @@ pub async fn connect(
 /// Pumps bytes between the WebSocket and the SSH session.
 ///
 /// Conventions:
-///   * browser -> server: binary frames are terminal input; text frames are
+///   * browser -> server: binary frames are terminal input. Text frames are
 ///     JSON control messages (`resize`).
-///   * server -> browser: binary frames are terminal output; text frames are
+///   * server -> browser: binary frames are terminal output. Text frames are
 ///     JSON status (`ready`, `exit`, `error`).
 #[allow(clippy::too_many_arguments)]
 async fn bridge(

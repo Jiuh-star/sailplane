@@ -1,8 +1,8 @@
 //! HuJSON support.
 //!
 //! Headscale's ACL policy is Human JSON: JSON plus `//`, `#` and `/* */`
-//! comments and trailing commas. [`strip`] normalises it into plain JSON while
-//! preserving every byte inside string literals; `serde_json` does the rest.
+//! comments and trailing commas. [`strip`] normalizes it into plain JSON while
+//! preserving every byte inside string literals. `serde_json` does the rest.
 
 /// Removes comments and trailing commas, yielding strict JSON.
 ///
@@ -16,7 +16,7 @@ pub fn strip(input: &str) -> Result<String, String> {
     while index < bytes.len() {
         match bytes[index] {
             b'"' => {
-                // Copy the string literal verbatim, honouring escapes.
+                // Copy the string literal verbatim, honoring escapes.
                 let start = index;
                 index += 1;
                 loop {
@@ -71,7 +71,7 @@ pub fn strip(input: &str) -> Result<String, String> {
                         b'/' if lookahead + 1 < bytes.len()
                             && (bytes[lookahead + 1] == b'/' || bytes[lookahead + 1] == b'*') =>
                         {
-                            // A comment follows the comma; skip it and keep
+                            // A comment follows the comma. Skip it and keep
                             // looking for the closing bracket.
                             lookahead = skip_comment(bytes, lookahead)?;
                             continue;

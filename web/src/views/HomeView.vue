@@ -41,7 +41,7 @@ const linked = computed(() => Boolean(session.user.value?.headscale_user_id))
 const needsLink = computed(() => !linked.value && unlinked.value.length > 0)
 
 onMounted(async () => {
-  // Members with UI access never see this page; send them to the dashboard.
+  // Members with UI access never see this page. Send them to the dashboard.
   if (session.access.value.ui) {
     await router.replace({ name: 'machines' })
     return
@@ -55,7 +55,7 @@ onMounted(async () => {
       selected.value = unlinked.value[0]!.id
     }
   } catch {
-    // A member may lack `read_users`; the page still explains how to connect.
+    // A member can lack `read_users`. The page still explains how to connect.
     unlinked.value = []
   } finally {
     loading.value = false

@@ -5,7 +5,8 @@ export default {
   loadFailedTitle: '无法加载代理状态',
   disabled: {
     title: '代理未启用',
-    description: '在 {config} 下启用后，即可查看每台设备的版本、端点和客户端连接状态。',
+    description:
+      '在「设置」的 {config} 中打开「启用 Sailplane 代理」并保存，即可查看每台设备的版本、端点和客户端连接状态，保存后立即生效。',
   },
   status: {
     healthy: '正常',

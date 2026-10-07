@@ -1,4 +1,4 @@
-//! Locating the running `headscale serve` process and signalling it.
+//! Locating the running `headscale serve` process and signaling it.
 //!
 //! Shared by the `proc` and `kubernetes` integrations. Headscale re-reads its
 //! configuration on `SIGHUP`, which avoids a restart.
@@ -15,7 +15,7 @@ const HEALTH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Finds the PID of the `headscale serve` process by scanning `/proc`.
 ///
-/// Returns the first match; Headscale is a single process in every supported
+/// Returns the first match. Headscale is a single process in every supported
 /// deployment shape.
 pub fn find_headscale_pid(proc_root: &Path) -> Option<u32> {
     let entries = std::fs::read_dir(proc_root).ok()?;
@@ -31,7 +31,7 @@ pub fn find_headscale_pid(proc_root: &Path) -> Option<u32> {
             continue;
         }
 
-        // `headscale serve` is the long-running server; the CLI exits.
+        // `headscale serve` is the long-running server. The CLI exits.
         let cmdline = std::fs::read(entry.path().join("cmdline")).unwrap_or_default();
         let cmdline = String::from_utf8_lossy(&cmdline).replace('\0', " ");
         if cmdline.split_whitespace().any(|arg| arg == "serve") {
@@ -53,7 +53,7 @@ pub fn signal_reload(pid: u32) -> Result<()> {
     Ok(())
 }
 
-/// Reloads Headscale by signalling `headscale serve` and waiting for health.
+/// Reloads Headscale by signaling `headscale serve` and waiting for health.
 pub async fn reload_via_signal(pid: u32, headscale: &Headscale) -> Result<()> {
     signal_reload(pid).context("failed to signal the Headscale process")?;
 

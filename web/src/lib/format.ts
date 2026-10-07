@@ -3,8 +3,8 @@
 import { currentLocale } from '@/i18n'
 
 // Intl defaults to the browser language, not the UI language. A Chinese browser
-// on the English UI would show Chinese dates. Formatters are keyed by locale so
-// a language switch rebuilds them.
+// on the English UI can show Chinese dates. Each locale gets its own formatters,
+// so a language switch rebuilds them.
 const dateFormatters = new Map<string, Intl.DateTimeFormat>()
 const relativeFormatters = new Map<string, Intl.RelativeTimeFormat>()
 
@@ -77,8 +77,8 @@ export function isNever(input: string | null | undefined): boolean {
 /**
  * Copies text to the clipboard and reports success.
  *
- * `navigator.clipboard` needs a secure context, and a tailnet URL over plain
- * HTTP is not one. The legacy selection-based copy is the fallback.
+ * `navigator.clipboard` operates only in a secure context. A tailnet URL over
+ * plain HTTP is not one. The legacy selection-based copy is the fallback.
  */
 export async function copyText(value: string): Promise<boolean> {
   if (window.isSecureContext && navigator.clipboard) {
@@ -86,7 +86,7 @@ export async function copyText(value: string): Promise<boolean> {
       await navigator.clipboard.writeText(value)
       return true
     } catch {
-      // Permission denied or the document is not focused; try the fallback.
+      // Permission denied or the document is not focused. Try the fallback.
     }
   }
 
@@ -134,7 +134,7 @@ function legacyCopy(value: string): boolean {
   return ok
 }
 
-/** Returns a stable colour for an avatar fallback, derived from the label. */
+/** Returns a stable color for an avatar fallback, derived from the label. */
 export function avatarHue(label: string): number {
   let hash = 0
   for (let index = 0; index < label.length; index += 1) {

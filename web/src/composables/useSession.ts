@@ -1,7 +1,7 @@
 /**
- * Shared session and configuration state. Loaded once from `GET /api/session`
- * and refreshed after login or logout; consumers read from here rather than
- * refetch.
+ * Shared session and configuration state. The app loads it once from
+ * `GET /api/session` and refreshes it after login or logout. Consumers read
+ * from here rather than refetch.
  */
 
 import { computed, readonly, ref } from 'vue'
@@ -87,7 +87,7 @@ export function useSession() {
 
   const isApiKeySession = computed(() => session.value?.principal === 'api_key')
 
-  /** True while the deployment still needs first-run onboarding. */
+  /** True while first-run onboarding is still necessary. */
   const setupRequired = computed(() => config.value.setupRequired)
 
   /** Default landing route for the signed-in principal. */

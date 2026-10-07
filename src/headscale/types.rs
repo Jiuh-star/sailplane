@@ -43,7 +43,7 @@ pub struct Machine {
     #[serde(default)]
     pub register_method: String,
 
-    /// Flat tag list on 0.28+; empty on older versions (see `forced_tags`).
+    /// Flat tag list on 0.28+, empty on older versions (see `forced_tags`).
     #[serde(default)]
     pub tags: Vec<String>,
 
@@ -72,9 +72,9 @@ pub struct Machine {
 }
 
 impl Machine {
-    /// Returns the effective tag list, normalised across Headscale versions.
+    /// Returns the effective tag list, normalized across Headscale versions.
     ///
-    /// 0.28+ exposes a flat `tags` array; earlier versions split the tags into
+    /// 0.28+ exposes a flat `tags` array. Earlier versions split the tags into
     /// `forcedTags` and `validTags`.
     pub fn effective_tags(&self) -> Vec<String> {
         let mut tags: Vec<String> = self.tags.clone();
@@ -137,7 +137,7 @@ impl Machine {
     }
 }
 
-/// Headscale serialises absent optional strings as `""`, not by omitting them.
+/// Headscale serializes absent optional strings as `""`, not by omitting them.
 /// `Option<String>` alone would then yield `Some("")` and defeat UI fallbacks,
 /// so empty strings become `None`.
 fn empty_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -253,8 +253,8 @@ pub struct ApiKey {
 }
 
 impl ApiKey {
-    /// Returns the prefix with the masking `*` characters removed, so a
-    /// submitted key can be matched with `starts_with`.
+    /// Returns the prefix with the masking `*` characters removed, so you can
+    /// match a submitted key with `starts_with`.
     pub fn matchable_prefix(&self) -> String {
         self.prefix.replace('*', "")
     }

@@ -1,7 +1,7 @@
 export default {
   shell: {
     unreachableTitle: 'Headscale is unreachable',
-    unreachableBody: 'Sailplane cannot reach the Headscale API at {url}. Data on this page may be stale.',
+    unreachableBody: 'Sailplane cannot reach the Headscale API at {url}. Data on this page can be stale.',
   },
   save: 'Save',
   cancel: 'Cancel',
@@ -47,7 +47,7 @@ export default {
   },
   notFound: {
     title: 'Page not found',
-    description: 'The page you were looking for does not exist or was moved.',
+    description: 'The page you requested does not exist or moved.',
     backHome: 'Back to Sailplane',
   },
   status: {

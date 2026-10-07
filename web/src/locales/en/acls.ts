@@ -10,25 +10,31 @@ export default {
   },
   readOnlyPolicy: {
     title: 'Read-only policy',
-    body: 'Headscale is reading its policy from a file. Set {mode} in the Headscale configuration to edit it here.',
+    body: 'Headscale reads its policy from a file. Set {mode} in the Headscale configuration to edit it here.',
   },
   parseError: {
     title: 'Could not parse the policy',
     body: '{error}. Fix it in the “Edit file” tab.',
   },
   tabs: {
-    rules: 'Rules',
+    access: 'Rules & grants',
     tags: 'Tags & groups',
-    grants: 'Grants',
     advanced: 'Advanced',
     file: 'Edit file',
-    diff: 'Preview changes',
     check: 'Check access',
+  },
+  access: {
+    intro:
+      'Access rules (acls) and grant rules (grants) are two syntaxes for the same thing. Grants are the newer form. They support port-based rules and application capabilities. They can coexist, but pick one to keep the policy readable.',
+  },
+  bothSyntax: {
+    title: 'Both access syntaxes are present',
+    body: 'The policy contains both acls and grants. Both take effect. They are easy to confuse, so merge them into one.',
   },
   check: {
     title: 'Can this source reach that destination?',
     description:
-      'Sailplane evaluates the policy the way the data plane does: the first matching rule decides, and anything unmatched is denied. Nothing is sent to the machines.',
+      'Sailplane evaluates the policy the way the data plane does. The first matching rule decides. The policy denies anything that does not match. Sailplane sends nothing to the machines.',
     source: 'Source',
     sourcePlaceholder: 'user, group, tag, host or address',
     destination: 'Destination',
@@ -55,10 +61,10 @@ export default {
     ruleSrc: 'Source',
     ruleDst: 'Destination',
     ruleResult: 'Result',
-    noRules: 'The policy has no ACL rules, so everything is denied.',
+    noRules: 'The policy has no ACL rules, so it denies everything.',
     sshRules: 'SSH rules',
     sshHint:
-      'These govern Tailscale SSH only. A `check` rule asks for re-authentication instead of granting access outright.',
+      'These govern Tailscale SSH only. A `check` rule asks for re-authentication. It does not grant access outright.',
   },
   commentsLost: {
     title: 'Comments will be lost',
@@ -107,7 +113,7 @@ export default {
     mustBeArray: 'This must be a JSON array.',
     autoApprovers: {
       title: 'Auto-approvers',
-      description: 'Routes and exit nodes that are approved without a manual step.',
+      description: 'Routes and exit nodes that Headscale approves without a manual step.',
       routes: 'Routes',
       addRoute: 'Add route',
       noRoutes: 'No routes auto-approved',
@@ -141,7 +147,7 @@ export default {
     title: 'The policy saved with warnings',
   },
   file: {
-    hint: 'HuJSON is accepted, including {comment} comments and trailing commas. Saving from this tab sends the text verbatim.',
+    hint: 'Sailplane accepts HuJSON, including {comment} comments and trailing commas. When you save from this tab, Sailplane sends the text verbatim.',
   },
   diff: {
     title: 'Pending changes',
@@ -171,7 +177,7 @@ export default {
     newTitle: 'New access rule',
     editTitle: 'Edit access rule',
     description: 'Sources and destinations accept IPs, CIDRs, {tag}, {group} or {any}.',
-    portHint: 'A missing port is filled in as {port}.',
+    portHint: 'If you omit the port, Sailplane uses {port}.',
     save: 'Save rule',
   },
   sshDialog: {
@@ -190,23 +196,23 @@ export default {
     editGroupTitle: 'Edit group',
     newTagTitle: 'New tag',
     editTagTitle: 'Edit tag',
-    groupDescription: 'Members are written as username{\'@\'}. The trailing {\'@\'} is required.',
+    groupDescription: 'Write members as username{\'@\'}. The trailing {\'@\'} is necessary.',
     tagDescription: 'Owners accept group: references or username{\'@\'} entries.',
   },
   grantDialog: {
     newTitle: 'New grant rule',
     editTitle: 'Edit grant rule',
-    description: 'Grants are the newer access syntax. Ports are written as tcp:443 or udp:53.',
+    description: 'Grants are the newer access syntax. Write ports as tcp:443 or udp:53.',
     save: 'Save grant',
   },
   approverRouteDialog: {
     newTitle: 'New auto-approved route',
     editTitle: 'Edit auto-approved route',
-    description: 'A CIDR and the selectors whose machines may advertise it.',
+    description: 'A CIDR and the selectors whose machines can advertise it.',
   },
   exitNodesDialog: {
     title: 'Auto-approved exit nodes',
-    description: 'Selectors whose machines may act as exit nodes. Separate entries with commas.',
+    description: 'Selectors whose machines can act as exit nodes. Separate entries with commas.',
   },
   nodeAttrDialog: {
     newTitle: 'New node attribute',

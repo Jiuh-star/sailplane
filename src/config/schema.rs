@@ -45,7 +45,7 @@ const fn setting(
 }
 
 /// Every setting the UI edits directly. Settings absent here are still stored
-/// and served; the UI shows them in a raw JSON editor.
+/// and served. The UI shows them in a raw JSON editor.
 pub const SETTINGS_SCHEMA: &[SettingDescriptor] = &[
     // --- Server ---
     setting("server.host", "server", Kind::Text, false, true),
@@ -204,68 +204,71 @@ pub const SETTINGS_SCHEMA: &[SettingDescriptor] = &[
         false,
         true,
     ),
+    // The agent and browser SSH services re-read their configuration when a
+    // setting is saved (see `AppState::reload_settings`), so these apply without
+    // a restart and are marked accordingly.
     setting(
         "integration.agent.enabled",
         "agent",
         Kind::Bool,
         false,
-        true,
+        false,
     ),
     setting(
         "integration.agent.host_name",
         "agent",
         Kind::Text,
         false,
-        true,
+        false,
     ),
     setting(
         "integration.agent.cache_ttl",
         "agent",
         Kind::Number,
         false,
-        true,
+        false,
     ),
     setting(
         "integration.agent.backend",
         "agent",
         Kind::Text,
         false,
-        true,
+        false,
     ),
-    setting("integration.agent.socket", "agent", Kind::Path, false, true),
+    setting("integration.agent.socket", "agent", Kind::Path, false, false),
     setting(
         "integration.agent.executable_path",
         "agent",
         Kind::Path,
         false,
-        true,
+        false,
     ),
     setting(
         "integration.agent.work_dir",
         "agent",
         Kind::Path,
         false,
-        true,
+        false,
     ),
     setting(
         "integration.agent.tailscale_netns",
         "agent",
         Kind::Bool,
         false,
-        true,
+        false,
     ),
-    setting("integration.ssh.enabled", "ssh", Kind::Bool, false, true),
-    setting("integration.ssh.port", "ssh", Kind::Number, false, true),
-    setting("integration.ssh.username", "ssh", Kind::Text, false, true),
-    setting("integration.ssh.proxy", "ssh", Kind::Text, false, true),
+    setting("integration.ssh.enabled", "ssh", Kind::Bool, false, false),
+    setting("integration.ssh.port", "ssh", Kind::Number, false, false),
+    setting("integration.ssh.username", "ssh", Kind::Text, false, false),
+    setting("integration.ssh.proxy", "ssh", Kind::Text, false, false),
     setting(
         "integration.ssh.private_key_path",
         "ssh",
         Kind::Path,
         false,
-        true,
+        false,
     ),
-    setting("integration.ssh.password", "ssh", Kind::Text, true, true),
+    setting("integration.ssh.password", "ssh", Kind::Text, true, false),
     // --- Advanced ---
     setting("debug", "advanced", Kind::Bool, false, false),
 ];

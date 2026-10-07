@@ -1,7 +1,7 @@
 //! Read/write access to the Headscale configuration file.
 //!
 //! Writes go through [`YamlEditor`], which patches the document in place so
-//! comments, ordering and formatting survive. Every mutation is serialised
+//! comments, ordering and formatting survive. Every mutation is serialized
 //! through a mutex and followed by an integration reload (`on_config_change`),
 //! because Headscale only re-reads its config on SIGHUP or restart.
 
@@ -82,7 +82,7 @@ struct Inner {
     config_path: Option<PathBuf>,
     records_path: Option<PathBuf>,
     access: ConfigAccess,
-    /// Serialises writes so two concurrent patches cannot interleave.
+    /// Serializes writes so two concurrent patches cannot interleave.
     lock: Mutex<()>,
 }
 
@@ -103,7 +103,7 @@ impl HeadscaleConfigFile {
             }
             Some(path) => {
                 tracing::warn!(
-                    "headscale.config_path {} does not exist; config-backed features are disabled",
+                    "headscale.config_path {} does not exist. Config-backed features are disabled",
                     path.display()
                 );
                 ConfigAccess::No
@@ -149,7 +149,7 @@ impl HeadscaleConfigFile {
             if configured_records_path.is_none() {
                 bail!(
                     "sailplane.dns_records_path is set to {} but the Headscale config at {} does \
-                     not set dns.extra_records_path; Headscale would ignore the file",
+                     not set dns.extra_records_path. Headscale would ignore the file",
                     override_path.display(),
                     config.display()
                 );
@@ -260,7 +260,7 @@ impl HeadscaleConfigFile {
         Ok(Some(records))
     }
 
-    /// Adds a DNS record, deduplicating on name + type.
+    /// Adds a DNS record and deduplicates on name + type.
     pub async fn add_dns_record(&self, record: DnsRecord) -> Result<()> {
         self.mutate_records(move |records| {
             if records.iter().any(|existing| {
@@ -316,7 +316,7 @@ impl HeadscaleConfigFile {
     /// Writes the record list. The caller must hold the write lock.
     fn write_records(&self, records: Vec<DnsRecord>) -> Result<()> {
         if !self.inner.access.writable() {
-            bail!("the Headscale configuration is read-only; DNS records cannot be changed");
+            bail!("the Headscale configuration is read-only. DNS records cannot be changed");
         }
 
         if let Some(path) = self.inner.records_path.clone() {
@@ -480,7 +480,7 @@ policy:
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
 
         let file = HeadscaleConfigFile::load(Some(&path), None).unwrap();
-        // Running as root bypasses the permission bits; skip in that case.
+        // Running as root bypasses the permission bits. Skip in that case.
         if file.access() == ConfigAccess::ReadWrite {
             return;
         }
@@ -589,7 +589,7 @@ policy:
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
 
         let file = HeadscaleConfigFile::load(Some(&path), Some(&records_path)).unwrap();
-        // Running as root bypasses the permission bits; skip in that case.
+        // Running as root bypasses the permission bits. Skip in that case.
         if file.access() == ConfigAccess::ReadWrite {
             return;
         }

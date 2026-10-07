@@ -24,7 +24,7 @@ export default {
     present: '已设置密钥',
     absent: '未设置密钥',
     fromPath: '从 {path} 读取',
-    hint: '该值不会回传到浏览器：替换会写入新值，不动它则保持原样。',
+    hint: '该值不会回传到浏览器。替换它会写入新值，不改动则保持原样。',
     placeholder: '新的客户端密钥',
     replace: '替换',
     clear: '清除',
@@ -43,7 +43,7 @@ export default {
     title: '配置里的 `oidc.expiry` 会让 Headscale 无法启动',
     body: 'Headscale 0.29 已移除该键，改用 `node.expiry`。只要它还在配置文件里，服务端就会拒绝启动。',
     action: '移除该键',
-    removed: '已移除 oidc.expiry',
+    removed: '已移除 `oidc.expiry`',
   },
   toast: {
     saved: '单点登录设置已保存',

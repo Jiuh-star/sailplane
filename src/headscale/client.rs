@@ -93,7 +93,7 @@ impl Headscale {
             .connect_timeout(Duration::from_secs(10))
             // Headscale is on an internal network and must never go through an
             // ambient `HTTP_PROXY`. This also keeps the bearer API key off any
-            // intermediary; upstream's undici client ignores proxy variables
+            // intermediary. Upstream's undici client ignores proxy variables
             // for the same reason.
             .no_proxy();
 
@@ -233,7 +233,7 @@ impl Headscale {
         });
     }
 
-    /// Checks server health. `GET /health`. Never fails; a transport error
+    /// Checks server health. `GET /health`. Never fails. A transport error
     /// means unhealthy.
     pub async fn health(&self) -> bool {
         let url = format!("{}/health", self.base_url());
@@ -419,8 +419,8 @@ impl ApiClient {
 
     /// Enables or disables key expiry. Requires Headscale 0.29+.
     ///
-    /// Headscale reads a missing `expiry` as "now". Re-enabling expiry must
-    /// therefore name a date, because `disableExpiry=false` alone logs the node
+    /// Headscale reads a missing `expiry` as "now". Thus, re-enabling expiry must
+    /// name a date, because `disableExpiry=false` alone logs the node
     /// out. The date is 180 days out, matching Tailscale's default.
     pub async fn toggle_node_expiry(
         &self,
@@ -563,7 +563,7 @@ impl ApiClient {
         })
     }
 
-    /// Expires a pre-auth key. Headscale 0.28+ identifies keys by id; earlier
+    /// Expires a pre-auth key. Headscale 0.28+ identifies keys by id. Earlier
     /// versions need the owning user's numeric id plus the key itself.
     pub async fn expire_pre_auth_key(
         &self,

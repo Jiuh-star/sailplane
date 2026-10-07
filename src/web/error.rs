@@ -16,10 +16,10 @@ pub enum ApiError {
     Forbidden(String),
     NotFound(String),
     BadRequest(String),
-    /// Headscale rejected the request; the status is preserved.
+    /// Headscale rejected the request. The status is preserved.
     ///
     /// Boxed because the variant carries the response body, and every handler
-    /// returns `ApiResult`; keeping the success path small matters.
+    /// returns `ApiResult`. Keeping the success path small matters.
     Upstream(Box<HeadscaleError>),
     Internal(anyhow::Error),
 }
@@ -92,7 +92,7 @@ impl ApiError {
 /// Turns a Headscale error into something a user can act on.
 fn upstream_message(err: &HeadscaleError) -> String {
     if err.is_policy_read_only() {
-        return "The ACL policy is not writable because Headscale is using file mode. Set \
+        return "The ACL policy is not writable because Headscale uses file mode. Set \
                 `policy.mode: database` in the Headscale configuration to enable editing."
             .into();
     }
@@ -120,7 +120,7 @@ fn upstream_message(err: &HeadscaleError) -> String {
                 return message.to_string();
             }
             if *status == 401 {
-                return "Headscale rejected the API key. It may have expired or been deleted."
+                return "Headscale rejected the API key. It can be expired or deleted."
                     .into();
             }
             let trimmed = raw.trim();

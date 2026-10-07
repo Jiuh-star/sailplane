@@ -14,11 +14,11 @@ use crate::headscale::Machine;
 pub use roles::{Capability, CapabilitySet, Role};
 pub use session::{CookieOptions, CookiePayload, OidcTransaction, SameSite};
 
-/// Who is making the current request.
+/// The principal that makes the current request.
 #[derive(Debug, Clone)]
 pub enum Principal {
-    /// Logged in with a Headscale API key; the key is used for API calls and
-    /// every capability check passes.
+    /// Logged in with a Headscale API key. Sailplane uses the key for API calls,
+    /// and every capability check passes.
     ApiKey {
         display_name: String,
         api_key: String,
@@ -30,7 +30,7 @@ pub enum Principal {
         id_token: Option<String>,
     },
 
-    /// Authenticated by a trusted reverse proxy; request-scoped, no session row.
+    /// Authenticated by a trusted reverse proxy. The request has no session row.
     Proxy { user: SailplaneUser },
 }
 
@@ -60,7 +60,7 @@ impl Principal {
         matches!(self, Self::ApiKey { .. })
     }
 
-    /// Every capability held by this principal; API keys hold all of them.
+    /// Every capability held by this principal. API keys hold all of them.
     pub fn capabilities(&self) -> CapabilitySet {
         match self {
             Self::ApiKey { .. } => CapabilitySet::from_bits(Capability::ALL.0),
@@ -75,10 +75,10 @@ impl Principal {
         self.capabilities().contains_all(capabilities)
     }
 
-    /// Reports whether this principal may modify the given node.
+    /// Reports whether this principal can modify the given node.
     ///
-    /// API-key principals and `write_machines` holders may edit any node. Others
-    /// may edit only nodes owned by their linked Headscale user.
+    /// API-key principals and `write_machines` holders can edit any node. Others
+    /// can edit only nodes owned by their linked Headscale user.
     pub fn can_manage_node(&self, node: &Machine) -> bool {
         if self.has(Capability::WriteMachines) {
             return true;
@@ -91,7 +91,7 @@ impl Principal {
         };
         node.user.as_ref().is_some_and(|owner| owner.id == linked)
     }
-    /// The Headscale user ID this principal may create self-service keys for.
+    /// The Headscale user ID this principal can create self-service keys for.
     pub fn linked_headscale_user(&self) -> Option<&str> {
         self.sailplane_user()
             .and_then(|user| user.headscale_user_id.as_deref())
@@ -126,7 +126,7 @@ impl AuthService {
         }
     }
 
-    /// Resolves the principal for a session cookie value, pruning expired rows.
+    /// Resolves the principal for a session cookie value and prunes expired rows.
     pub async fn resolve_session(&self, cookie: Option<&str>) -> Result<Option<Principal>> {
         let Some(cookie) = cookie else {
             return Ok(None);
@@ -279,7 +279,7 @@ impl AuthService {
             return Ok(None);
         };
 
-        // Another account may already hold the link.
+        // Another account can already hold the link.
         if self.db.link_headscale_user(&user.id, &matched.id).is_err() {
             return Ok(None);
         }
@@ -313,7 +313,7 @@ impl AuthService {
 
                 match matched {
                     Some(key) if key.is_expired() => {
-                        Ok(Err("That API key has already expired".into()))
+                        Ok(Err("That API key already expired".into()))
                     }
                     Some(key) => {
                         let expires_at = key
@@ -332,11 +332,11 @@ impl AuthService {
                 }
             }
             Err(err) if err.is_unauthorized() || err.status() == Some(403) => {
-                Ok(Err("The API key is invalid or has expired".into()))
+                Ok(Err("The API key is invalid or expired".into()))
             }
             // Older Headscale builds answer with a generic 500 for bad keys.
             Err(err) if err.status() == Some(500) && err.raw_body().contains("Unauthorized") => {
-                Ok(Err("The API key is invalid or has expired".into()))
+                Ok(Err("The API key is invalid or expired".into()))
             }
             Err(err) => Ok(Err(format!("Could not validate the API key: {err}"))),
         }

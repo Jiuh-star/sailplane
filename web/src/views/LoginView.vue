@@ -47,8 +47,8 @@ const notice = computed(() => {
   return key ? { kind: 'warning' as const, message: t(key) } : null
 })
 
-// A secure cookie over plain HTTP is dropped by the browser, so sign-in would
-// silently fail. The reverse combination only means the cookie is not `Secure`.
+// The browser drops a secure cookie over plain HTTP, so sign-in can fail
+// silently. The reverse combination only means the cookie is not `Secure`.
 const insecureCookies = computed(
   () => session.config.value.cookieSecure && !window.location.protocol.startsWith('https'),
 )

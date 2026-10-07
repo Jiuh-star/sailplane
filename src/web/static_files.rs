@@ -2,8 +2,8 @@
 //!
 //! Assets are embedded at compile time, so deployment is a single file.
 //! `SAILPLANE_STATIC_DIR` overrides that with a directory on disk for the dev
-//! server. The frontend build emits compressed `*.gz` and `*.br` variants,
-//! which are served directly, so the server never compresses.
+//! server. The frontend build emits compressed `*.gz` and `*.br` variants.
+//! The server serves them directly and never compresses.
 
 use axum::body::Body;
 use axum::extract::State;
@@ -18,7 +18,7 @@ use super::state::SharedState;
 #[exclude = "*.map"]
 struct Assets;
 
-/// Directories whose contents are content-hashed and therefore immutable.
+/// Directories whose contents are content-hashed and thus immutable.
 const IMMUTABLE_PREFIXES: [&str; 2] = ["assets/", "fonts/"];
 
 /// Serves the SPA and falls back to `index.html` for client routes. `GET *`
@@ -30,9 +30,9 @@ pub async fn serve(
     let path = uri.path();
     let prefix = state.prefix();
 
-    // Inside a nested router axum supplies the path *without* the mount prefix,
-    // but `Uri` still reports it verbatim when the fallback is reached from the
-    // outer router. Accept both shapes rather than depending on which one wins.
+    // Inside a nested router axum supplies the path *without* the mount prefix.
+    // `Uri` still reports it verbatim when the outer router reaches the
+    // fallback. Accept both shapes rather than depending on which one wins.
     let without_prefix = match path.strip_prefix(prefix) {
         Some(rest) => rest,
         None => path,
@@ -41,7 +41,7 @@ pub async fn serve(
 
     // The dev static directory joins this onto a path on disk, so a `..`
     // segment would read outside it. Production is an embedded map lookup and
-    // would 404 either way; reject both the same way.
+    // would 404 either way. Reject both the same way.
     if relative
         .split('/')
         .any(|segment| segment == ".." || segment.contains('\0'))
@@ -64,7 +64,7 @@ pub async fn serve(
         return response;
     }
 
-    // A request for a missing asset with an extension is a genuine 404; a path
+    // A request for a missing asset with an extension is a genuine 404. A path
     // without one is a client-side route and gets the shell.
     if relative
         .rsplit('/')
@@ -82,7 +82,7 @@ fn serve_spa_index(state: &SharedState) -> Response {
         Some(bytes) => html_response(inject_base_href(bytes, state.prefix())),
         None => (
             StatusCode::SERVICE_UNAVAILABLE,
-            "The Sailplane frontend has not been built. Run `npm run build` inside `web/`.",
+            "The Sailplane frontend is not built. Run `npm run build` inside `web/`.",
         )
             .into_response(),
     }
@@ -125,8 +125,8 @@ fn lookup(relative: &str, encoding: Encoding) -> Option<Response> {
     };
 
     for candidate in candidates {
-        // The build writes `.br`/`.gz` next to the original; a dev static
-        // directory may only have the plain file, hence the fallback.
+        // The build writes `.br`/`.gz` next to the original. A dev static
+        // directory can have only the plain file, so the lookup falls back.
         let found = encoding
             .and_then(|suffix| {
                 read_asset(&format!("{candidate}{suffix}")).map(|bytes| (bytes, Some(suffix)))
@@ -158,7 +158,7 @@ fn preferred_encoding(header: Option<&HeaderValue>) -> Encoding {
     }
 }
 
-/// Whether `Accept-Encoding` allows `coding`, treating `q=0` as a refusal.
+/// Whether `Accept-Encoding` accepts `coding`, treating `q=0` as a refusal.
 fn accepts(header: &str, coding: &str) -> bool {
     header.split(',').any(|entry| {
         let mut params = entry.split(';');
@@ -237,7 +237,7 @@ fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not found").into_response()
 }
 
-/// Minimal extension-to-MIME mapping; avoids pulling in a mime database.
+/// Minimal extension-to-MIME mapping. It does not use a mime database.
 fn mime_for(path: &str) -> &'static str {
     match path.rsplit('.').next().unwrap_or_default() {
         "html" => "text/html; charset=utf-8",

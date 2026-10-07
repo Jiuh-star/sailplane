@@ -47,12 +47,74 @@ export default {
     ssh: 'SSH',
     advanced: '高级',
   },
+  groupDescriptions: {
+    server: 'Sailplane 的监听方式与 Cookie 签名方式。',
+    headscale: 'Sailplane 如何连接 Headscale 控制服务器。',
+    oidc: 'Sailplane 自身的单点登录，与 Headscale 的 OIDC 相互独立。',
+    integration: '配置变更后 Sailplane 如何重载 Headscale。',
+    agent:
+      'Sailplane 代理：一个 tailscaled sidecar，负责上报主机信息并承载浏览器 SSH。要启用它，本机必须存在它的 socket，保存后立即生效。',
+    ssh: '浏览器 SSH：服务器通过上面的代理打开每个会话。',
+    advanced: '很少改动的选项。',
+  },
+  fields: {
+    headscale: {
+      url: 'Headscale API 地址',
+      public_url: '公网地址',
+      api_key: 'API 密钥',
+      api_key_path: 'API 密钥文件',
+      config_path: '配置文件路径',
+      dns_records_path: 'DNS 记录路径',
+      tls_cert_path: 'TLS 证书路径',
+    },
+    server: {
+      host: '监听地址',
+      port: '监听端口',
+      base_url: '公开基础地址',
+      base_path: 'URL 路径前缀',
+      data_path: '数据目录',
+    },
+    oidc: {
+      enabled: '启用单点登录',
+    },
+    integration: {
+      agent: {
+        enabled: '启用 Sailplane 代理',
+        backend: '后端',
+        host_name: '代理主机名',
+        socket: 'Tailscale socket 路径',
+        cache_ttl: '主机信息缓存（秒）',
+        executable_path: '代理可执行文件',
+        work_dir: '代理工作目录',
+        tailscale_netns: '使用网络命名空间',
+      },
+      ssh: {
+        enabled: '启用浏览器 SSH',
+        proxy: 'SOCKS5 代理地址',
+        port: 'SSH 端口',
+        username: '默认用户',
+        private_key_path: '私钥路径',
+        password: '密码',
+      },
+    },
+  },
+  fieldDescriptions: {
+    integration: {
+      agent: {
+        enabled: '开启主机信息与 SSH 承载功能，保存后立即生效。',
+      },
+      ssh: {
+        proxy: 'sidecar 的 SOCKS5 地址，通常为 127.0.0.1:1086。',
+      },
+    },
+  },
   nothingToConfigure: {
     title: '没有可配置的内容',
     description: '你的账户无权访问任何设置板块。',
   },
   deployment: {
     title: '部署',
+    overviewTitle: '实例概览',
     description: '此 Sailplane 实例的部署方式。',
     sailplaneVersion: 'Sailplane 版本',
     headscaleVersion: 'Headscale 版本',

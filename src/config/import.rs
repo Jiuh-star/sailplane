@@ -30,7 +30,7 @@ pub fn import_str(db: &Db, raw: &str) -> Result<()> {
     serde_yaml_ng::from_value::<Config>(yaml.clone())
         .context("the config file does not match the sailplane schema")?;
 
-    let json = serde_json::to_value(&yaml).context("failed to normalise the config file")?;
+    let json = serde_json::to_value(&yaml).context("failed to normalize the config file")?;
     let mut leaves = Vec::new();
     flatten("", &json, &mut leaves);
 
@@ -60,7 +60,7 @@ fn flatten(prefix: &str, value: &Value, leaves: &mut Vec<(String, Value)>) {
                 flatten(&path, child, leaves);
             }
         }
-        // `null` means "unset"; the default applies instead.
+        // `null` means "unset". The default applies instead.
         Value::Null => {}
         other => leaves.push((prefix.to_string(), other.clone())),
     }

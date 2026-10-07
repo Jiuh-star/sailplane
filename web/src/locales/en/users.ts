@@ -6,7 +6,7 @@ export default {
   localBody:
     'Users sign in here with an API key. Configure OpenID Connect to let people sign in with your identity provider.',
   accountsTitle: 'Sailplane accounts',
-  noAccounts: 'No users have signed into Sailplane yet.',
+  noAccounts: 'No users signed in to Sailplane yet.',
   unlinkedTitle: 'Unlinked Headscale users',
   notLinked: 'Not linked',
   notLinkedToLogin: 'Not linked to a login',
@@ -50,7 +50,7 @@ export default {
   },
   linkDialog: {
     title: 'Link a Headscale user',
-    description: 'The link decides which machines this account may manage.',
+    description: 'The link decides which machines this account can manage.',
     userLabel: 'Headscale user',
     placeholder: 'Select a user',
     current: ' (current)',
@@ -62,14 +62,14 @@ export default {
   },
   groupsDialog: {
     title: 'Edit groups',
-    description: 'Group membership is written to the ACL policy as {name}.',
+    description: 'Sailplane writes group membership to the ACL policy as {name}.',
     empty: 'Not a member of any group.',
     placeholder: 'group:ops',
   },
   transfer: {
     title: 'Transfer ownership?',
     description:
-      '{name} becomes the owner and your account is demoted to Admin. This cannot be undone.',
+      '{name} becomes the owner. Sailplane demotes your account to Admin. This cannot be undone.',
     confirm: 'Transfer ownership',
   },
   delete: {

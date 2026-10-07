@@ -16,7 +16,7 @@ use serde_json::{Map, Value};
 /// An access rule inside `acls`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AclRule {
-    /// `accept` for plain rules; unknown actions are preserved verbatim.
+    /// `accept` for plain rules. Unknown actions are preserved verbatim.
     #[serde(default = "default_accept")]
     pub action: String,
 
@@ -33,14 +33,14 @@ pub struct AclRule {
     #[serde(default, rename = "srcPosture", skip_serializing_if = "Vec::is_empty")]
     pub src_posture: Vec<String>,
 
-    /// Any additional keys on the rule object.
+    /// More keys on the rule object.
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
 
 /// A rule inside `grants`, the newer Tailscale access syntax.
 ///
-/// `ip` carries the protocol and ports (`tcp:443`, `udp:*`, `*`); `app` names
+/// `ip` carries the protocol and ports (`tcp:443`, `udp:*`, `*`). `app` names
 /// application capabilities. Fields whose exact shape is uncertain keep their
 /// keys in `extra`, so a round trip never drops them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -57,14 +57,53 @@ pub struct GrantRule {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub via: Vec<String>,
 
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub app: Vec<Value>,
+    /// Application capabilities. Tailscale writes this as an object keyed by
+    /// capability name (`{"tailscale.com/cap/drive": [{"access": "rw"}]}`). An
+    /// older, array-shaped form also exists. Kept as a `Value` so any shape
+    /// round-trips and an unrecognized one cannot push the whole `grants`
+    /// section into the [`Section::Raw`] fallback, which would hide every grant
+    /// from the topology and the access checker.
+    #[serde(default = "null_value", skip_serializing_if = "Value::is_null")]
+    pub app: Value,
 
     #[serde(default, rename = "srcPosture", skip_serializing_if = "Vec::is_empty")]
     pub src_posture: Vec<String>,
 
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+impl GrantRule {
+    /// Whether the grant carries application capabilities.
+    pub fn has_app(&self) -> bool {
+        !self.app.is_null()
+    }
+
+    /// The capability names the grant names, best-effort across shapes. An
+    /// object contributes its keys. An array contributes each entry's `cap`.
+    pub fn capabilities(&self) -> Vec<String> {
+        match &self.app {
+            Value::Object(map) => map.keys().cloned().collect(),
+            Value::Array(items) => items
+                .iter()
+                .filter_map(|item| item.get("cap"))
+                .flat_map(|cap| match cap {
+                    Value::String(name) => vec![name.clone()],
+                    Value::Array(names) => names
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect(),
+                    _ => Vec::new(),
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+fn null_value() -> Value {
+    Value::Null
 }
 
 /// An SSH rule inside `ssh`.
@@ -154,8 +193,8 @@ fn default_accept() -> String {
 /// The typed view of a policy document.
 ///
 /// Every rule type Tailscale defines has a slot here. Sections whose exact
-/// shape is not modelled are held in a [`Section`], which preserves an
-/// unrecognised shape instead of failing to parse.
+/// shape is not modeled are held in a [`Section`], which preserves an
+/// unrecognized shape instead of failing to parse.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Policy {
     #[serde(default)]
@@ -231,7 +270,7 @@ impl Policy {
 
     /// Renders the policy back to text.
     pub fn to_text(&self) -> Result<String> {
-        serde_json::to_string_pretty(self).context("failed to serialise the policy")
+        serde_json::to_string_pretty(self).context("failed to serialize the policy")
     }
 
     /// The `grants` rules, when the section parsed into the typed form.
@@ -271,8 +310,8 @@ impl Policy {
 
     /// Replaces `username@` group membership wholesale.
     ///
-    /// `selected` is the complete set of groups the user should belong to;
-    /// membership is removed from every other group.
+    /// `selected` is the complete set of groups the user must belong to.
+    /// It removes membership from every other group.
     pub fn set_user_groups(&mut self, username: &str, selected: &[String]) -> Result<()> {
         for group in selected {
             if !is_valid_group_name(group) {
@@ -318,8 +357,8 @@ pub fn is_valid_group_name(name: &str) -> bool {
 }
 /// Appends the default port when a destination omits one.
 ///
-/// Headscale requires `host:port`; the UI accepts bare hosts and normalises
-/// them here.
+/// `host:port` is necessary for Headscale. The UI accepts bare hosts and
+/// normalizes them here.
 pub fn with_default_port(destination: &str) -> String {
     let trimmed = destination.trim();
     if trimmed.is_empty() || trimmed.contains(':') {
@@ -328,7 +367,7 @@ pub fn with_default_port(destination: &str) -> String {
     format!("{trimmed}:*")
 }
 
-/// Whether normalising the destinations changed any of them.
+/// Whether normalizing the destinations changed any of them.
 pub fn normalise_destinations(destinations: &[String]) -> (Vec<String>, bool) {
     let mut changed = false;
     let normalised = destinations
@@ -368,7 +407,7 @@ mod tests {
         assert_eq!(policy.groups_for_user("alice"), vec!["group:ops"]);
         assert!(policy.groups_for_user("carol").is_empty());
 
-        // `autoApprovers` is now modelled, and the typed routes survive a
+        // `autoApprovers` is now modeled, and the typed routes survive a
         // round trip.
         let approvers = policy
             .auto_approvers
@@ -413,8 +452,46 @@ mod tests {
         assert!(text.contains("\"cap\""), "{text}");
     }
 
-    /// A section with an unexpected shape must not fail the parse; it is kept
-    /// verbatim so the structured editor stays reachable.
+    /// The shape Tailscale actually writes: `app` is an object keyed by
+    /// capability name. It used to be modeled as an array, so serde rejected
+    /// the whole `grants` section and every grant silently vanished.
+    #[test]
+    fn a_map_shaped_app_grants_parse() {
+        let text = r#"{
+            "grants": [
+                {
+                    "src": ["*"],
+                    "dst": ["*"],
+                    "app": {
+                        "tailscale.com/cap/drive": [
+                            { "shares": ["*"], "access": "rw" }
+                        ]
+                    }
+                }
+            ],
+            "nodeAttrs": [
+                { "target": ["autogroup:member"], "attr": ["drive:share", "drive:access"] }
+            ]
+        }"#;
+
+        let policy = Policy::parse(text).unwrap();
+        let grants = policy.grant_rules();
+        assert_eq!(grants.len(), 1, "the grants section must stay typed");
+        assert!(grants[0].ip.is_empty());
+        assert!(grants[0].has_app());
+        assert_eq!(
+            grants[0].capabilities(),
+            vec!["tailscale.com/cap/drive".to_string()]
+        );
+
+        // The object shape survives a round trip.
+        let round_tripped = Policy::parse(&policy.to_text().unwrap()).unwrap();
+        assert_eq!(round_tripped.grant_rules().len(), 1);
+        assert!(round_tripped.to_text().unwrap().contains("tailscale.com/cap/drive"));
+    }
+
+    /// A section with an unexpected shape must not fail the parse. The parser
+    /// keeps it verbatim so the structured editor stays reachable.
     #[test]
     fn an_unexpected_section_shape_is_preserved() {
         let policy = Policy::parse(r#"{"grants":"not-an-array","acls":[]}"#).unwrap();

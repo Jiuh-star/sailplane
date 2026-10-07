@@ -14,7 +14,7 @@ use super::error::{ApiError, ApiResult};
 use super::presentation::AccountView;
 use super::state::{Auth, PrincipalExt, SharedState};
 
-/// Usernames must be lowercase and URL-safe; Headscale rejects anything else.
+/// Usernames must be lowercase and URL-safe. Headscale rejects anything else.
 fn validate_username(name: &str) -> Result<(), ApiError> {
     let valid = name.len() >= 2
         && name.len() <= 63
@@ -36,7 +36,7 @@ fn validate_username(name: &str) -> Result<(), ApiError> {
 /// Resolves a route parameter against the live user list.
 ///
 /// The id is interpolated into Headscale request paths, so it must come from
-/// data already held rather than from the URL: a raw segment can carry `..`
+/// data already held rather than from the URL. A raw segment can carry `..`
 /// (and `%2F`, which axum decodes) and escape into another endpoint.
 async fn live_user(state: &SharedState, id_or_name: &str) -> ApiResult<crate::headscale::User> {
     state
@@ -218,7 +218,7 @@ pub async fn rename(
     let user = live_user(&state, &id).await?;
     if user.is_oidc() {
         return Err(ApiError::forbidden(
-            "This user is managed by the identity provider and cannot be renamed here",
+            "The identity provider manages this user, so you cannot rename it here",
         ));
     }
 
@@ -256,7 +256,7 @@ pub async fn update_groups(
     let current = client.get_policy().await.map_err(ApiError::from)?;
     if current.updated_at.is_none() {
         return Err(ApiError::bad_request(
-            "The ACL policy is read-only because Headscale is using file mode. Set \
+            "The ACL policy is read-only because Headscale uses file mode. Set \
              `policy.mode: database` to edit groups.",
         ));
     }
@@ -303,7 +303,7 @@ pub async fn reassign_role(
 
     if target.is_owner() {
         return Err(ApiError::forbidden(
-            "The owner's role cannot be changed; transfer ownership first",
+            "The owner's role cannot be changed. Transfer ownership first",
         ));
     }
 
@@ -373,7 +373,7 @@ pub async fn delete_account(
 
     if target.is_owner() {
         return Err(ApiError::forbidden(
-            "The owner account cannot be deleted; transfer ownership first",
+            "The owner account cannot be deleted. Transfer ownership first",
         ));
     }
 

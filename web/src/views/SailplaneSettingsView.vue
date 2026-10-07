@@ -6,7 +6,15 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, CircleCheck, LoaderCircle, Save, Trash2, TriangleAlert } from '@lucide/vue'
+import {
+  ArrowLeft,
+  ChevronDown,
+  CircleCheck,
+  LoaderCircle,
+  Save,
+  Trash2,
+  TriangleAlert,
+} from '@lucide/vue'
 
 import PageHeader from '@/components/shared/PageHeader.vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -20,14 +28,26 @@ import { Textarea } from '@/components/ui/textarea'
 import { errorMessage, useToast } from '@/composables/useToast'
 import { api, type SettingsEntry } from '@/lib/api'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const toast = useToast()
 
-const GROUP_ORDER = ['server', 'headscale', 'oidc', 'integration', 'agent', 'ssh', 'advanced']
+// The feature groups that people configure come first. The other groups come
+// below.
+const GROUP_ORDER = ['headscale', 'agent', 'ssh', 'integration', 'server', 'oidc', 'advanced']
+// Groups that stay collapsed until the user opens them, so the page is not too
+// long.
+const COLLAPSED_BY_DEFAULT = ['server', 'oidc', 'advanced']
 
 const entries = ref<SettingsEntry[]>([])
 const loading = ref(true)
 const failure = ref<string | null>(null)
+const collapsed = ref<Record<string, boolean>>(
+  Object.fromEntries(COLLAPSED_BY_DEFAULT.map((group) => [group, true])),
+)
+
+function toggle(group: string) {
+  collapsed.value[group] = !collapsed.value[group]
+}
 
 // Editable drafts, keyed by dotted setting key.
 const text = ref<Record<string, string>>({})
@@ -55,7 +75,7 @@ const groups = computed(() => {
     .sort((a, b) => order(a.group) - order(b.group))
 })
 
-/** Known groups sort first, in schema order; anything else keeps a stable tail. */
+/** Known groups sort first, in schema order. Anything else keeps a stable tail. */
 function order(group: string): number {
   const index = GROUP_ORDER.indexOf(group)
   return index === -1 ? GROUP_ORDER.length : index
@@ -63,8 +83,33 @@ function order(group: string): number {
 
 function groupLabel(group: string): string {
   const key = `settings.groups.${group}`
-  const label = t(key)
-  return label === key ? group : label
+  return te(key) ? t(key) : group
+}
+
+function groupDescription(group: string): string | null {
+  const key = `settings.groupDescriptions.${group}`
+  return te(key) ? t(key) : null
+}
+
+/**
+ * A readable field name: a translated label when one exists, otherwise the
+ * last path segment with underscores turned into spaces (`base_url` → `base
+ * url`). The dotted key stays visible underneath, so the user never loses the
+ * mapping.
+ */
+function fieldLabel(entry: SettingsEntry): string {
+  const key = `settings.fields.${entry.key}`
+  if (te(key)) return t(key)
+  const segment = entry.key.split('.').pop() ?? entry.key
+  const words = segment.split('_')
+  const head = words[0] ?? ''
+  return [head.charAt(0).toUpperCase() + head.slice(1), ...words.slice(1)].join(' ')
+}
+
+/** A one-line explanation of a field, when one exists. */
+function fieldDescription(entry: SettingsEntry): string | null {
+  const key = `settings.fieldDescriptions.${entry.key}`
+  return te(key) ? t(key) : null
 }
 
 function toInput(entry: SettingsEntry): string {
@@ -298,13 +343,28 @@ async function runImport() {
 
     <Card v-for="section in groups" :key="section.group">
       <CardHeader>
-        <CardTitle class="text-base">{{ groupLabel(section.group) }}</CardTitle>
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-3 text-left"
+          @click="toggle(section.group)"
+        >
+          <span class="space-y-1">
+            <CardTitle class="text-base">{{ groupLabel(section.group) }}</CardTitle>
+            <CardDescription v-if="groupDescription(section.group)">
+              {{ groupDescription(section.group) }}
+            </CardDescription>
+          </span>
+          <ChevronDown
+            class="text-muted-foreground size-4 shrink-0 transition-transform"
+            :class="collapsed[section.group] ? '' : 'rotate-180'"
+          />
+        </button>
       </CardHeader>
-      <CardContent class="space-y-5">
+      <CardContent v-show="!collapsed[section.group]" class="space-y-5">
         <div v-for="entry in section.items" :key="entry.key" class="space-y-2">
           <div class="flex flex-wrap items-center gap-2">
-            <Label :for="`setting-${entry.key}`" class="font-mono text-xs">
-              {{ entry.key }}
+            <Label :for="`setting-${entry.key}`" class="text-sm">
+              {{ fieldLabel(entry) }}
             </Label>
             <Badge v-if="entry.restartRequired" variant="warning">
               {{ t('settings.deploymentSettings.restartRequired') }}
@@ -375,6 +435,11 @@ async function runImport() {
               {{ t('settings.deploymentSettings.listHint') }}
             </p>
           </div>
+
+          <p v-if="fieldDescription(entry)" class="text-muted-foreground text-xs">
+            {{ fieldDescription(entry) }}
+          </p>
+          <p class="text-muted-foreground/70 font-mono text-[11px]">{{ entry.key }}</p>
         </div>
       </CardContent>
     </Card>

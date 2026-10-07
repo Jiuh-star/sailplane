@@ -1,6 +1,6 @@
 //! Headscale version parsing and the capability set derived from it.
 //!
-//! `/version` only exists from Headscale 0.27.0 onwards, so a 404 means the
+//! `/version` only exists from Headscale 0.27.0 onward, so a 404 means the
 //! server is older than that. Anything unparseable (`dev`, Go pseudo-versions)
 //! is treated as *newest*: capabilities are permissive rather than absent.
 
@@ -40,7 +40,7 @@ pub struct ServerVersion {
     pub raw: String,
     /// `None` when the version string could not be parsed.
     pub parsed: Option<Semver>,
-    /// True when the version is unknown and every capability should be assumed.
+    /// True when the version is unknown, so Sailplane assumes every capability.
     pub unknown: bool,
 }
 
@@ -118,7 +118,7 @@ impl ServerVersion {
             key_expiry_can_be_disabled: self.at_least(0, 29, 0),
             // Headscale's support for the `grants` syntax is version dependent
             // and newer than the parsing here. Parsing and round-tripping never
-            // depend on this flag; it only decides whether the structured
+            // depend on this flag. It only decides whether the structured
             // Grants editor is offered.
             grants_supported: self.at_least(0, 27, 0),
         }
@@ -138,7 +138,7 @@ impl Default for ServerVersion {
 /// Feature availability derived from the server version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Capabilities {
-    /// Pre-auth keys have stable IDs and can be listed unfiltered (0.28+).
+    /// Pre-auth keys have stable IDs, so Sailplane can list them unfiltered (0.28+).
     pub pre_auth_keys_have_stable_ids: bool,
     /// Node tags are a flat array rather than forced/valid split (0.28+).
     pub node_tags_are_flat: bool,
@@ -146,7 +146,7 @@ pub struct Capabilities {
     pub node_owner_is_immutable: bool,
     /// A registration key is the full `hskey-authreq-…` string (0.29+).
     pub register_key_includes_auth_req_prefix: bool,
-    /// Key expiry can be toggled (0.29+).
+    /// Sailplane can toggle key expiry (0.29+).
     pub key_expiry_can_be_disabled: bool,
     /// The server accepts the `grants` access syntax in a policy.
     pub grants_supported: bool,
@@ -168,7 +168,7 @@ impl Capabilities {
                     return false;
                 }
                 // `/ts2021` returned 405 for WebSocket upgrades in 0.29.0
-                // through 0.29.1; fixed in 0.29.2.
+                // through 0.29.1, fixed in 0.29.2.
                 if v.major == 0 && v.minor == 29 && v.patch < 2 {
                     return false;
                 }

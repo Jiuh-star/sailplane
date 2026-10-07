@@ -5,6 +5,7 @@ mod agent;
 mod auth;
 mod config;
 mod db;
+mod derp;
 mod headscale;
 mod hsconfig;
 mod integrations;
@@ -33,8 +34,8 @@ const SESSION_SWEEP_INTERVAL: Duration = Duration::from_secs(15 * 60);
     about = "A feature-complete web UI for Headscale"
 )]
 struct Cli {
-    /// Legacy configuration file. Imported into the database on first start,
-    /// then deprecated.
+    /// Legacy configuration file. Sailplane imports it into the database on
+    /// first start, then deprecates it.
     #[arg(
         long,
         env = "SAILPLANE_CONFIG_PATH",
@@ -79,7 +80,7 @@ async fn main() -> Result<()> {
     };
 
     // The legacy file is an import source only. `--config` still works for a
-    // one-time migration; a missing file is not an error.
+    // one-time migration. A missing file is not an error.
     let legacy = cli.config.exists().then_some(cli.config.as_path());
     let settings = match config::store::Settings::bootstrap(&db, legacy, Some(&data_path)) {
         Ok(settings) => settings,
@@ -114,11 +115,11 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// The data directory. It must be known before the database, and therefore
-/// before any stored setting, is read.
+/// The data directory. Sailplane must know it before it reads the database,
+/// and thus before it reads any stored setting.
 ///
-/// An environment variable wins. Otherwise a legacy config file's
-/// `server.data_path` is used, so an existing deployment upgrades in place
+/// An environment variable wins. Otherwise Sailplane uses `server.data_path`
+/// from a legacy config file, so an existing deployment upgrades in place
 /// without extra flags.
 fn boot_data_path(legacy: &Path) -> PathBuf {
     if let Ok(value) = std::env::var("SAILPLANE_DATA_PATH") {
@@ -139,7 +140,8 @@ fn boot_data_path(legacy: &Path) -> PathBuf {
     PathBuf::from("/var/lib/sailplane/")
 }
 
-/// Renders the configuration as YAML, masking secret values unless asked.
+/// Renders the configuration as YAML and masks secret values unless
+/// `show_secrets` is true.
 fn render_config(config: &config::Config, show_secrets: bool) -> Result<String> {
     let mut value =
         serde_yaml_ng::to_value(config).context("failed to render the configuration")?;
@@ -202,22 +204,23 @@ async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
 
     match headscale.probe_version().await {
         Ok(Some(version)) if version.below_minimum() => tracing::error!(
-            "headscale {} is older than the minimum supported version {}; some features \
+            "headscale {} is older than the minimum supported version {}. Some features \
              will not work",
             version.raw,
             headscale::version::MIN_SUPPORTED
         ),
         Ok(Some(version)) => tracing::info!("connected to headscale {}", version.raw),
         Ok(None) => tracing::error!(
-            "headscale /version returned 404; version {} or newer is required",
+            "headscale /version returned 404. Version {} or newer is required",
             headscale::version::MIN_SUPPORTED
         ),
         Err(err) => tracing::warn!(
-            "could not determine the headscale version ({err:#}); assuming newest capabilities"
+            "could not determine the headscale version ({err:#}). Sailplane assumes the \
+             newest capabilities"
         ),
     }
-    // Keep retrying until a version is known, so an in-place upgrade is picked
-    // up without restarting Sailplane.
+    // Keep retrying until the version is known, so Sailplane picks up an
+    // in-place upgrade without a restart.
     if headscale.version().unknown {
         headscale.spawn_version_poller();
     }
@@ -249,7 +252,7 @@ async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
     )?;
     match hsconfig.access() {
         hsconfig::ConfigAccess::No => tracing::warn!(
-            "no readable Headscale configuration file; DNS and authentication restriction \
+            "no readable Headscale configuration file. DNS and authentication restriction \
              editing is disabled"
         ),
         hsconfig::ConfigAccess::ReadOnly => {
@@ -265,30 +268,13 @@ async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
     tracing::info!("reload integration: {}", integration.name());
 
     // --- Agent ---
-    let mut agent_config = config
-        .integration
-        .as_ref()
-        .and_then(|integration| integration.agent.clone())
-        .unwrap_or_else(|| config::AgentConfig {
-            enabled: false,
-            host_name: "sailplane-agent".into(),
-            cache_ttl: 180_000,
-            backend: config::AgentBackend::System,
-            socket: None,
-            executable_path: PathBuf::from("/usr/libexec/sailplane/agent"),
-            work_dir: config.server.data_path.join("agent"),
-            tailscale_netns: true,
-        });
-
-    if agent_config.socket.is_none() {
-        agent_config.socket = agent::tailscale::default_socket();
-    }
-    let agent_disabled_reason = agent_disabled_reason(config.as_ref(), &headscale);
+    let agent_config = config.agent_config();
+    let agent_disabled_reason = agent::disabled_reason(config.as_ref(), &headscale);
     if agent_disabled_reason.is_none() {
         match agent::tailscale::probe(agent_config.socket.as_deref()).await {
             Some(source) => tracing::info!("agent host info source: {}", source.as_str()),
             None => tracing::warn!(
-                "the Tailscale daemon did not answer; host info will fall back to the command \
+                "the Tailscale daemon did not answer. Host info will fall back to the command \
                  line, which cannot report peer versions"
             ),
         }
@@ -306,12 +292,8 @@ async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
     agent.spawn_refresher(live.clone());
 
     // --- Browser SSH ---
-    let ssh_config = config
-        .integration
-        .as_ref()
-        .and_then(|integration| integration.ssh.clone())
-        .unwrap_or_default();
-    let ssh_disabled_reason = ssh_disabled_reason(&ssh_config);
+    let ssh_config = config.ssh_config();
+    let ssh_disabled_reason = ssh::disabled_reason(&ssh_config);
     let ssh = ssh::SshService::new(ssh_config, ssh_disabled_reason);
 
     // --- Auth ---
@@ -326,7 +308,7 @@ async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
                     match provider.discover().await {
                         Ok(_) => tracing::info!("OpenID Connect provider is ready"),
                         Err(err) => tracing::warn!(
-                            "OpenID Connect discovery failed ({}); single sign-on stays \
+                            "OpenID Connect discovery failed ({}). Single sign-on stays \
                              unavailable until the provider responds",
                             err.message()
                         ),
@@ -334,7 +316,7 @@ async fn run(settings: config::store::Settings, db: db::Db) -> Result<()> {
                     Some(provider)
                 }
                 Err(err) => {
-                    tracing::error!("failed to initialise OpenID Connect: {err:#}");
+                    tracing::error!("failed to initialize OpenID Connect: {err:#}");
                     None
                 }
             }
@@ -427,72 +409,6 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("shutting down");
-}
-
-/// Explains why the agent cannot run, or `None` when it can.
-fn agent_disabled_reason(
-    config: &config::Config,
-    headscale: &headscale::Headscale,
-) -> Option<String> {
-    let agent_config = config.integration.as_ref()?.agent.as_ref()?;
-    if !agent_config.enabled {
-        return Some("The Sailplane agent is disabled in the configuration.".into());
-    }
-    if config.headscale.api_key.is_none() {
-        return Some(
-            "The agent needs `headscale.api_key` so it can register itself and read node data."
-                .into(),
-        );
-    }
-    if !headscale.capabilities().agent_supported() {
-        return Some(
-            "The agent requires Headscale 0.28.0 or newer for tag-only pre-authentication keys."
-                .into(),
-        );
-    }
-    if agent_config.backend == config::AgentBackend::System {
-        let socket = agent_config
-            .socket
-            .clone()
-            .unwrap_or_else(|| std::path::PathBuf::from(agent::tailscale::DEFAULT_SOCKET));
-        if !socket.exists() {
-            return Some(format!(
-                "No Tailscale daemon socket at {}. Mount the socket into the container, or set \
-                 `integration.agent.socket` to its path.",
-                socket.display()
-            ));
-        }
-    }
-    None
-}
-
-/// Explains why browser SSH cannot run, or `None` when it can.
-fn ssh_disabled_reason(config: &config::SshConfig) -> Option<String> {
-    if !config.enabled {
-        return None;
-    }
-    // A proxy is how Sailplane reaches a tailnet it is not itself a member of;
-    // without one, direct connectivity is assumed.
-    if let Some(proxy) = config.proxy.as_deref() {
-        let address = proxy
-            .trim_start_matches("socks5h://")
-            .trim_start_matches("socks5://")
-            .trim_start_matches("socks://");
-        if std::net::TcpStream::connect_timeout(
-            &address
-                .parse()
-                .unwrap_or_else(|_| "127.0.0.1:0".parse().expect("valid literal")),
-            std::time::Duration::from_millis(500),
-        )
-        .is_err()
-        {
-            return Some(format!(
-                "The configured SSH proxy at {address} is not reachable. If you rely on the \
-                 sidecar tailscaled, set `TS_SOCKS5_SERVER` so it exposes one."
-            ));
-        }
-    }
-    None
 }
 
 /// Writes the loopback health URL for container health checks.

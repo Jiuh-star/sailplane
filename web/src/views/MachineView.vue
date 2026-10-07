@@ -45,7 +45,7 @@ async function load() {
     supports.value = response.supports
     failure.value = null
 
-    // The list endpoint carries the tag vocabulary the dialogs need.
+    // The list endpoint carries the tag vocabulary the dialogs use.
     const list = await api.machines.list()
     users.value = list.users
     policyTags.value = list.policyTags
@@ -78,7 +78,7 @@ const netInfo = computed(() => {
 })
 
 // The terminal is a full-screen route rather than a popup window: the browser
-// back button returns to this page, and the address is shareable.
+// back button returns to this page, and the user can share the address.
 function openSsh() {
   if (!machine.value) return
   void router.push({ name: 'ssh', params: { id: machine.value.id } })
@@ -120,7 +120,7 @@ function fullDomain(): string {
 
           <div class="flex items-center gap-2">
             <!-- The bridge uses the server's own tailnet identity,
-                 so it is offered only to accounts that may manage the node. -->
+                 so the view offers it only to accounts that can manage the node. -->
             <Button
               v-if="machine.online && access.write"
               variant="outline"

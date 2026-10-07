@@ -67,7 +67,7 @@ export default {
   },
   transfer: {
     title: '移交所有权？',
-    description: '{name} 将成为所有者，你的账户会被降级为管理员。此操作无法撤销。',
+    description: '{name} 将成为所有者。Sailplane 会把你的账户降级为管理员。此操作无法撤销。',
     confirm: '移交所有权',
   },
   delete: {

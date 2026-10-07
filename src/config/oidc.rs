@@ -137,23 +137,23 @@ impl OidcConfig {
         }
 
         if self.issuer.is_empty() {
-            bail!("oidc.issuer is required");
+            bail!("oidc.issuer is necessary");
         }
         self.issuer = self.issuer.trim_end_matches('/').to_string();
 
         if self.client_id.is_empty() {
-            bail!("oidc.client_id is required");
+            bail!("oidc.client_id is necessary");
         }
         if self.client_secret.as_deref().unwrap_or("").is_empty() {
-            bail!("oidc.client_secret is required (or client_secret_path)");
+            bail!("oidc.client_secret is necessary (or client_secret_path)");
         }
 
-        // The authorization code flow requires the redirect URI; it comes from
-        // `server.base_url` when not pinned explicitly.
+        // The redirect URI is necessary for the authorization code flow. It
+        // comes from `server.base_url` when not pinned explicitly.
         if base_url.is_none() && self.post_logout_redirect_uri.is_none() {
             tracing::warn!(
-                "oidc is enabled but server.base_url is not set; \
-                 the redirect URI will fall back to the request host"
+                "oidc is enabled but server.base_url is not set. \
+                 The redirect URI will fall back to the request host"
             );
         }
 

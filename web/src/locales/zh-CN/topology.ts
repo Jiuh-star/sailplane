@@ -18,7 +18,7 @@ export default {
   graph: {
     title: '访问关系图',
     description:
-      '每条线是一条规则，标签是它放行的端口。虚线是 Tailscale SSH 规则，只作用于 22 端口。',
+      '每条线代表一条规则、一条路由、一次批准或一条中继连接，用颜色区分。点击某条线查看它对应的规则。',
     label: '访问关系图',
     machineCount: '{count} 台',
     ruleNumber: '第 {index} 条规则',
@@ -26,11 +26,21 @@ export default {
     reach: '从 {from} 台可达 {to} 台',
     users: '登录名 {users}',
     hint: '点击某条线查看它对应的规则。',
-    acl: 'ACL',
-    grant: 'Grants',
-    ssh: 'SSH',
+    internet: '互联网',
+    relayRegion: '中继区域',
+    edge: {
+      acl: 'ACL',
+      grant: 'Grants',
+      cap: '能力授权',
+      ssh: 'SSH',
+      route: '路由',
+      exit: '出口节点',
+      relay: '中继',
+      approval: '自动批准',
+    },
     legendAcl: '{count} 条 ACL 规则',
     legendGrant: '{count} 条 Grants 规则',
+    legendCap: '{count} 条能力授权',
     legendSsh: '{count} 条 SSH 规则',
   },
   policy: {

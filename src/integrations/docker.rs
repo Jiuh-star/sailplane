@@ -1,7 +1,7 @@
 //! Docker integration: restarts the Headscale container after a config change.
 //!
 //! Uses the Docker Engine API directly over the configured socket. Unix sockets
-//! go through a hyper client with a custom connector; `tcp://` sockets use the
+//! go through a hyper client with a custom connector. `tcp://` sockets use the
 //! regular HTTP client.
 
 use std::time::Duration;
@@ -59,7 +59,7 @@ impl DockerIntegration {
     async fn probe_api_version(&self) -> Result<String> {
         let response = self.request("GET", "/version", None).await?;
 
-        // Very old daemons answer `/_ping` but not `/version`; a parse failure
+        // Very old daemons answer `/_ping` but not `/version`. A parse failure
         // is not fatal because the unversioned path still works.
         let version = response
             .get("ApiVersion")
@@ -86,9 +86,9 @@ impl DockerIntegration {
     async fn find_container(&self) -> Result<String> {
         let api = self.resolve_api_version().await?;
 
-        // The filter value is a JSON document, so it must be percent-encoded
-        // before it becomes part of the request URI: raw braces and quotes are
-        // not valid URI characters.
+        // The filter value is a JSON document, so percent-encode it before it
+        // becomes part of the request URI: raw braces and quotes are not valid
+        // URI characters.
         let filter = match self.config.container_name.as_deref() {
             Some(name) => format!("{{\"name\":[\"{name}\"]}}"),
             None => format!("{{\"label\":[\"{}\"]}}", self.config.container_label),
@@ -134,7 +134,7 @@ impl DockerIntegration {
 
     /// Streams the Headscale container's logs as text.
     ///
-    /// The socket stays open when `follow` is set, so this returns a stream
+    /// The socket stays open when you set `follow`, so this returns a stream
     /// rather than a body: output arrives as Headscale writes it.
     pub async fn log_stream(
         &self,
@@ -142,15 +142,15 @@ impl DockerIntegration {
         follow: bool,
     ) -> Result<BoxStream<'static, Result<Bytes, std::io::Error>>> {
         let container = self.find_container().await?;
-        // `find_container` resolves this too; the second call is cached.
+        // `find_container` resolves this too. The second call is cached.
         let api = self.resolve_api_version().await?;
         let path = format!(
             "/v{api}/containers/{container}/logs?stdout=1&stderr=1&tail={tail}&follow={}",
             u8::from(follow)
         );
 
-        // The pool lives in the client, and the response is still being read
-        // when this function returns: dropping the client here would abort the
+        // The pool lives in the client. The caller still reads the response
+        // when this function returns, so dropping the client here aborts the
         // in-flight connection. It travels with the stream instead.
         let uri: hyper::Uri = if let Some(authority) = self.config.socket.strip_prefix("tcp://") {
             format!("http://{authority}{path}")
@@ -327,7 +327,7 @@ async fn collect(response: hyper::Response<hyper::body::Incoming>) -> Result<Vec
 }
 
 /// The HTTP client for whichever socket the configuration names. Both accept
-/// `hyper::Request<Full<Bytes>>`; they differ only in what they connect to.
+/// `hyper::Request<Full<Bytes>>`. They differ only in what they connect to.
 enum Transport {
     Unix(Client<hyperlocal::UnixConnector, Full<Bytes>>),
     Tcp(Client<hyper_util::client::legacy::connect::HttpConnector, Full<Bytes>>),
@@ -349,7 +349,7 @@ impl LogDemux {
 
         let framed = *self.framed.get_or_insert_with(|| {
             // A frame header is a stream type of 0–2 followed by three zero
-            // bytes; a log line that looks like that does not occur in practice.
+            // bytes. A log line that looks like that does not occur in practice.
             self.buffer.len() >= 8 && self.buffer[0] <= 2 && self.buffer[1..4] == [0, 0, 0]
         });
 

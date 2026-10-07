@@ -1,4 +1,4 @@
-//! Operational endpoints: health, build info and the colour-scheme cookie.
+//! Operational endpoints: health, build info and the color-scheme cookie.
 
 use axum::Json;
 use axum::extract::State;
@@ -27,7 +27,7 @@ pub async fn healthz(State(state): State<SharedState>) -> Response {
     (code, Json(HealthResponse { status })).into_response()
 }
 
-/// Returns build and version info; guarded by `server.info_secret`. `GET /api/info`
+/// Returns build and version info, guarded by `server.info_secret`. `GET /api/info`
 pub async fn info(State(state): State<SharedState>, headers: HeaderMap) -> ApiResult<Response> {
     let config = state.config();
     let Some(secret) = config.server.info_secret.as_deref() else {

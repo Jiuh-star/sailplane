@@ -1,4 +1,4 @@
-//! Authentication restrictions: which OIDC identities may sign in.
+//! Authentication restrictions: which OIDC identities can sign in.
 
 use axum::Json;
 use axum::extract::State;
@@ -108,7 +108,7 @@ pub async fn update(
         .ok_or_else(|| ApiError::bad_request("A value is required"))?;
 
     if request.kind == RestrictionKind::Domains {
-        // A bare domain is accepted; a URL is rejected.
+        // A bare domain is accepted. A URL is rejected.
         let probe = format!("http://{value}");
         let host = url::Url::parse(&probe)
             .ok()

@@ -1,7 +1,7 @@
 //! Cached Headscale snapshots with change notifications.
 //!
 //! One shared client polls nodes every 5 s and users every 15 s, as upstream
-//! does. A changed payload bumps a version counter; browsers subscribe over
+//! does. A changed payload bumps a version counter. Browsers subscribe over
 //! SSE and refetch only when their resource's version moves. Snapshots stay in
 //! memory, so a page load never blocks on Headscale.
 
@@ -178,7 +178,7 @@ impl LiveStore {
 fn versions_equal<T: Serialize>(a: &T, b: &T) -> bool {
     match (serde_json::to_value(a), serde_json::to_value(b)) {
         (Ok(a), Ok(b)) => a == b,
-        // If serialisation fails, treat the payload as changed so the UI is
+        // If serialization fails, treat the payload as changed so the UI is
         // never stuck on a stale snapshot.
         _ => false,
     }

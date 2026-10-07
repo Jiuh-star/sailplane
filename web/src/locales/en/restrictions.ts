@@ -1,6 +1,6 @@
 export default {
   title: 'Authentication restrictions',
-  description: 'Limit which identities may sign in to Headscale through OpenID Connect.',
+  description: 'Limit which identities can sign in to Headscale through OpenID Connect.',
   loadFailedTitle: 'Could not load the restrictions',
   readOnly: {
     title: 'Read-only',
@@ -11,21 +11,21 @@ export default {
     description:
       'Restrictions are stored in the Headscale configuration file, which Sailplane cannot write to.',
   },
-  allowEveryoneHint: 'Leave empty to allow everyone from your identity provider.',
+  allowEveryoneHint: 'Leave empty to let everyone from your identity provider sign in.',
   sections: {
     domains: {
       title: 'Permitted domains',
-      empty: 'All domains are permitted to authenticate',
+      empty: 'All domains can authenticate',
       placeholder: 'example.com',
     },
     groups: {
       title: 'Permitted groups',
-      empty: 'All groups are permitted to authenticate',
+      empty: 'All groups can authenticate',
       placeholder: 'engineering',
     },
     users: {
       title: 'Permitted users',
-      empty: 'All users are permitted to authenticate',
+      empty: 'All users can authenticate',
       placeholder: "alice{'@'}example.com",
     },
   },

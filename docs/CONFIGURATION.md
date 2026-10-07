@@ -1,18 +1,20 @@
 # Configuration
 
-Settings live in Sailplane's SQLite database and are edited from the **Deployment**
-page in the UI. A YAML config file is still read for one-time migration, then
-deprecated; see [Migrating a config file](#migrating-a-config-file).
+Settings live in Sailplane's SQLite database, and you edit them from the
+**Deployment** page in the UI. Sailplane still reads a YAML config file for
+one-time migration and then deprecates it. See
+[Migrating a config file](#migrating-a-config-file).
 
-The effective configuration is built in this order, later layers winning:
+Sailplane builds the effective configuration in this order, with later layers
+winning:
 
 1. Built-in defaults.
 2. Values stored in the database (the UI writes these).
 3. `SAILPLANE_<SECTION>__<KEY>` environment overrides.
 
-Only the data directory must be known before the database is opened, so it comes
-from `SAILPLANE_DATA_PATH` (default `/var/lib/sailplane/`) or a legacy config
-file's `server.data_path`.
+Only the data directory must be known before the database opens. It comes from
+`SAILPLANE_DATA_PATH` (default `/var/lib/sailplane/`) or a legacy config file's
+`server.data_path`.
 
 ## First-run onboarding
 
@@ -20,17 +22,18 @@ On a fresh deployment with no account, no single sign-on, and no Headscale API
 key yet, the UI shows a setup wizard. It asks for the Headscale URL and API key,
 then optionally the public URL, and creates the first account when you sign in.
 Importing a config file (or setting the key in the environment) marks the
-deployment as configured, so an upgrade never re-asks for values it already has.
-The wizard is reachable without authentication, so it is guarded by one of:
+deployment as configured. Thus an upgrade never re-asks for values it already
+has. You can reach the wizard without authentication, so one of these guards
+protects it:
 
 - A loopback peer (open it from the host itself).
-- A one-time setup token. The token is printed to the log at first start
-  (`first-run setup token: …`) and written to `setup-token` under the data
+- A one-time setup token. Sailplane prints the token to the log at first start
+  (`first-run setup token: …`) and writes it to `setup-token` under the data
   directory (mode `0600`, removed once onboarding completes). Send it in the
-  `x-setup-token` header. Override it with `SAILPLANE_SETUP_TOKEN`. Repeated
-  wrong tokens are refused until Sailplane restarts.
+  `x-setup-token` header. Override it with `SAILPLANE_SETUP_TOKEN`. Sailplane
+  refuses repeated wrong tokens until it restarts.
 
-After onboarding, the same values are edited on the Deployment page. A change to
+After onboarding, you edit the same values on the Deployment page. A change to
 a field marked **restart required** takes effect on the next start.
 
 ## Settings API
@@ -44,23 +47,23 @@ Owner accounts can read and change settings over the API.
 | POST | `/api/settings/validate` | `{ "values": { … } }` |
 | POST | `/api/settings/import` | `{ "yaml": "<YAML text>" }` |
 
-Secret values are never returned; the response reports whether one is set.
+Sailplane never returns secret values. The response reports whether one is set.
 
 ## Migrating a config file
 
-An existing YAML config file at `--config` / `SAILPLANE_CONFIG_PATH` (default
-`/etc/sailplane/config.yaml`) is imported into the database on the first start
-after an upgrade, then ignored. Sailplane logs a warning and continues. To import
-explicitly, run `sailplane --import-config <path>`.
+On the first start after an upgrade, Sailplane imports an existing YAML config
+file at `--config` / `SAILPLANE_CONFIG_PATH` (default `/etc/sailplane/config.yaml`)
+into the database. Then it ignores the file. Sailplane logs a warning and
+continues. To import explicitly, run `sailplane --import-config <path>`.
 
-The keys below are the ones the file may contain. A typo in a key name stops the
-import with an error; the loader rejects unknown keys.
+The keys below are the ones the file can contain. A typo in a key name stops the
+import with an error. The loader rejects unknown keys.
 
 ---
 
-The rest of this document describes the configuration schema. Every key is
-stored in the database and edited from the UI; `*_path` keys still read a secret
-from a file, which suits container secret mounts.
+The rest of this document describes the configuration schema. Sailplane stores
+every key in the database, and you edit them from the UI. `*_path` keys still
+read a secret from a file. That form suits container secret mounts.
 
 ## Minimal example
 
@@ -87,8 +90,8 @@ separates the section from the key. Single underscores stay in the key.
 SAILPLANE_SERVER__PORT=8080 SAILPLANE_DEBUG=true sailplane
 ```
 
-Values are parsed as YAML scalars. `true`, `3000` and `null` get their natural
-types.
+Sailplane parses values as YAML scalars. `true`, `3000` and `null` get their
+natural types.
 
 These variables do not follow the section pattern:
 
@@ -112,7 +115,7 @@ headscale:
 ```
 
 Set the inline value or the `*_path` key, never both. Both produce a startup
-error. The file may contain a trailing newline.
+error. The file can contain a trailing newline.
 
 The keys with a `*_path` variant are `server.cookie_secret`,
 `headscale.api_key` and `oidc.client_secret`. `integration.ssh.password` is
@@ -264,10 +267,10 @@ Sailplane is a clean break. It ignores the old names:
 - `HEADPLANE_*` environment variables have no effect. Use `SAILPLANE_*`.
 - The default config path changed to `/etc/sailplane/config.yaml`.
 - The default data path changed to `/var/lib/sailplane/`.
-- The database file changed to `sailplane_persist.db`. An old database is not
-  read. Point `server.data_path` at the old directory and rename the file to
-  keep the data.
-- The session cookie changed to `_sailplane_auth`. Existing sessions end; users
+- The database file changed to `sailplane_persist.db`. Sailplane does not read
+  an old database. Point `server.data_path` at the old directory and rename the
+  file to keep the data.
+- The session cookie changed to `_sailplane_auth`. Existing sessions end. Users
   sign in again.
 
 The configuration schema itself is the same. An existing Headplane config file

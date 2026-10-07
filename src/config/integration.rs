@@ -31,7 +31,7 @@ pub struct SshConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub private_key_path: Option<PathBuf>,
 
-    /// Password authentication. Prefer a key; this exists for appliances.
+    /// Password authentication. Prefer a key. This exists for appliances.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
 }
@@ -174,7 +174,7 @@ impl IntegrationConfig {
         if enabled.len() > 1 {
             bail!(
                 "only one of integration.docker, integration.kubernetes or integration.proc \
-                 may be enabled at a time (found: {})",
+                 can be enabled at a time (found: {})",
                 enabled.join(", ")
             );
         }

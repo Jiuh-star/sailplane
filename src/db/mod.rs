@@ -16,10 +16,10 @@ pub use models::{AuditEntry, SailplaneUser, Session, SessionKind};
 
 use crate::auth::roles::Role;
 
-/// Current schema version; incremented when a migration is appended.
+/// Current schema version. Increment it when a migration is appended.
 const SCHEMA_VERSION: i64 = 3;
 
-/// Maximum audit rows kept; the log records recent history only.
+/// Maximum audit rows kept. The log records recent history only.
 const AUDIT_LIMIT: i64 = 5000;
 
 /// Handle to the Sailplane database. Cloning shares the single connection.
@@ -68,7 +68,7 @@ impl Db {
         })
     }
 
-    /// In-memory database for tests; production always uses [`Db::open`].
+    /// In-memory database for tests. Production always uses [`Db::open`].
     #[cfg(test)]
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
@@ -164,7 +164,7 @@ impl Db {
         Ok(())
     }
 
-    /// Runs a closure with the connection held. Synchronous; async callers must
+    /// Runs a closure with the connection held. Synchronous. Async callers must
     /// use [`Db::run`].
     pub fn with<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
         let conn = self.conn.lock().expect("db lock poisoned");
@@ -519,19 +519,26 @@ impl Db {
         })
     }
 
-    /// Returns the most recent entries, newest first.
-    pub fn list_audit(&self, limit: i64, before_id: Option<i64>) -> Result<Vec<AuditEntry>> {
+    /// Returns one page of entries, newest first.
+    pub fn list_audit(&self, limit: i64, offset: i64) -> Result<Vec<AuditEntry>> {
         self.with(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, at, actor, role, method, path, status, detail
                    FROM audit_log
-                  WHERE (?1 IS NULL OR id < ?1)
                   ORDER BY id DESC
-                  LIMIT ?2",
+                  LIMIT ?1 OFFSET ?2",
             )?;
-            let rows = stmt.query_map(params![before_id, limit], AuditEntry::from_row)?;
+            let rows = stmt.query_map(params![limit, offset], AuditEntry::from_row)?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
                 .context("failed to read the audit log")
+        })
+    }
+
+    /// Total number of recorded entries, for pagination.
+    pub fn count_audit(&self) -> Result<i64> {
+        self.with(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM audit_log", [], |row| row.get(0))
+                .context("failed to count the audit log")
         })
     }
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * The Sailplane mark: a nine-dot grid whose lit dots read as a glider. The
- * wing row and tail use the text color, the nose is a hollow ring in the brand
- * color, and the four corners are the inactive grid, drawn faintly.
+ * wing row and tail use the text color. The nose is a hollow ring in the brand
+ * color. The four corners are the inactive grid, drawn faintly.
  */
 withDefaults(defineProps<{ label?: string }>(), { label: '' })
 </script>

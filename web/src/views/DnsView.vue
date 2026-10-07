@@ -81,8 +81,8 @@ const nameserverGroups = computed(() => {
 
 /**
  * Runs a config change and reloads the page state. The server answers 200 with
- * a `warning` when the edit was written but Headscale could not reload; that is
- * not a failure, so surface the warning and keep the refreshed data.
+ * a `warning` when it writes the edit but Headscale cannot reload. That is not
+ * a failure, so surface the warning and keep the refreshed data.
  */
 async function run(action: () => Promise<unknown>, message: string) {
   busy.value = true

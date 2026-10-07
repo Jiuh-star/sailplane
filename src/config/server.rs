@@ -16,7 +16,7 @@ pub struct ServerConfig {
     #[serde(default = "default_port")]
     pub port: u16,
 
-    /// Public URL of the deployment, excluding the base path. Required for
+    /// Public URL of the deployment, excluding the base path. Necessary for
     /// OIDC redirect URIs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
@@ -64,11 +64,11 @@ pub struct ServerConfig {
 pub struct ProxyAuthConfig {
     pub enabled: bool,
 
-    /// CIDRs permitted to authenticate. Defaults to loopback.
+    /// CIDRs that can authenticate. Defaults to loopback.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allowed_cidrs: Option<Vec<String>>,
 
-    /// Peers whose `ip_header` may be trusted. Defaults to loopback.
+    /// Peers whose `ip_header` can be trusted. Defaults to loopback.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trusted_proxy_cidrs: Option<Vec<String>>,
 
@@ -171,7 +171,7 @@ impl ServerConfig {
 
     pub(super) fn validate(&mut self) -> Result<()> {
         let Some(secret) = self.cookie_secret.as_deref() else {
-            bail!("server.cookie_secret is required (32 characters)");
+            bail!("server.cookie_secret is necessary (32 characters)");
         };
         if secret.chars().count() != 32 {
             bail!(
@@ -193,7 +193,7 @@ impl ServerConfig {
         self.base_path = base;
 
         if self.tls_cert_path.is_some() != self.tls_key_path.is_some() {
-            bail!("server.tls_cert_path and server.tls_key_path must be set together");
+            bail!("set server.tls_cert_path and server.tls_key_path together");
         }
         if self.tls_cert_path.is_some() {
             self.cookie_secure = true;
@@ -210,7 +210,7 @@ impl ServerConfig {
         Ok(())
     }
 
-    /// Returns the base path with no trailing slash; empty means served at the root.
+    /// Returns the base path with no trailing slash. Empty means served at the root.
     pub fn base_path(&self) -> &str {
         &self.base_path
     }

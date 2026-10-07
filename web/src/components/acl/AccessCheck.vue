@@ -34,7 +34,7 @@ const protocol = ref('tcp')
 const useDraft = ref(true)
 
 const reports = ref<AccessReport[]>([])
-/** The batch row whose detail panels are shown below. */
+/** The batch row whose detail panels appear below. */
 const selected = ref(0)
 const evaluated = ref<'saved' | 'draft' | null>(null)
 const failure = ref<string | null>(null)
@@ -356,7 +356,7 @@ function machineLabel(machine: { name: string; addresses: string[]; user: string
               <tr v-for="rule in report.rules" :key="`${rule.kind}-${rule.index}`" class="border-t">
                 <td class="py-2 font-mono" :data-label="t('acls.check.ruleNumber')">{{ rule.index + 1 }}</td>
                 <td class="py-2" :data-label="t('acls.check.ruleAction')">
-                  <!-- Index alone is not unique across sections; the kind disambiguates. -->
+                  <!-- Index alone is not unique across sections. The kind disambiguates. -->
                   <Badge variant="outline" class="mr-1.5">{{ rule.kind.toUpperCase() }}</Badge>
                   {{ rule.action }}
                 </td>

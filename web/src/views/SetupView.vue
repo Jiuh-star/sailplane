@@ -2,7 +2,7 @@
 /**
  * First-run onboarding. Public and bare: the server sends this page before any
  * account exists. Every call carries the one-time setup token when the caller
- * typed one; loopback callers may leave it empty.
+ * typed one. A loopback caller can leave it empty.
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -40,7 +40,7 @@ const token = ref('')
 const url = ref('')
 const apiKey = ref('')
 const baseUrl = ref('')
-// A secure cookie is dropped over plain HTTP, so guess from the current scheme.
+// A browser drops a secure cookie over plain HTTP, so guess from the current scheme.
 const cookieSecure = ref(window.location.protocol.startsWith('https'))
 
 const testing = ref(false)
@@ -66,7 +66,7 @@ const canContinue = computed(() => {
   return true
 })
 
-// The token is not needed on loopback, so the first step stays optional.
+// Loopback does not use the token, so the first step stays optional.
 const isLastStep = computed(() => step.value === steps.value.length - 1)
 
 onMounted(async () => {
@@ -78,7 +78,7 @@ onMounted(async () => {
       return
     }
   } catch {
-    // Keep the wizard usable when the status probe fails.
+    // When the status probe fails, keep the wizard usable.
   } finally {
     checking.value = false
   }

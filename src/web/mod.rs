@@ -23,7 +23,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use state::SharedState;
 
-/// Largest JSON body accepted. Policies and configs are small; this keeps a
+/// Largest JSON body accepted. Policies and configs are small. This keeps a
 /// hostile client from forcing large allocations.
 const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 
@@ -66,6 +66,7 @@ pub fn router(state: SharedState) -> Router {
         // --- DNS ---
         .route("/derp", get(settings::derp::get))
         .route("/derp", post(settings::derp::update))
+        .route("/derp/relays", get(settings::derp::relays))
         .route("/dns", get(settings::dns::get_config))
         .route("/dns/tailnet", post(settings::dns::rename_tailnet))
         .route("/dns/magic", post(settings::dns::toggle_magic))
@@ -130,7 +131,7 @@ pub fn router(state: SharedState) -> Router {
         app
     } else {
         // `nest` does not forward the bare `{prefix}/` request to the inner
-        // router, so the mount root needs an explicit route here. The layers
+        // router, so the mount root must have an explicit route here. The layers
         // are applied afterwards so that route gets them as well.
         Router::new()
             .route(&format!("{prefix}/"), get(static_files::serve))

@@ -27,7 +27,7 @@ const running = ref(false)
 const viewport = ref<HTMLDivElement | null>(null)
 let controller: AbortController | null = null
 
-/** Keeps the DOM bounded while following a chatty container. */
+/** Keeps the DOM bounded while the container writes many log lines. */
 const MAX_CHARS = 200_000
 
 const lineCount = computed(() => (text.value ? text.value.trimEnd().split('\n').length : 0))
@@ -70,7 +70,8 @@ async function start() {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
 
-    // A non-following read ends on its own; a following one runs until stopped.
+    // Without follow, the read ends on its own. With follow, it runs until the
+    // user stops it.
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break

@@ -5,7 +5,7 @@ export default {
   link: {
     title: 'Link your Headscale account',
     description:
-      'Choose the Headscale user this login belongs to. Sailplane uses the link to decide which machines you may manage.',
+      'Choose the Headscale user this login belongs to. Sailplane uses the link to decide which machines you can manage.',
     userLabel: 'Headscale user',
     userPlaceholder: 'Choose a user',
     submit: 'Link and continue',

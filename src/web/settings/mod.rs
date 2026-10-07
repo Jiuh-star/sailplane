@@ -25,7 +25,7 @@ pub async fn reload_after_change(state: &SharedState) -> Option<String> {
              restart Headscale (or send it SIGHUP) for the change to take effect"
         );
         return Some(
-            "Saved, but no reload integration is configured — restart Headscale to apply it."
+            "Saved, but no reload integration is configured. Restart Headscale to apply it."
                 .into(),
         );
     }

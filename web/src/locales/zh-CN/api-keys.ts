@@ -3,7 +3,7 @@ export default {
   description: 'Sailplane 及其他自动化工具访问控制面所用的凭据。',
   warningTitle: '这些密钥等同于 root 权限',
   warningBody:
-    '持有者可以管理这个 Headscale 上的所有用户、设备和策略。请吊销任何你不认识的密钥，并尽量为每个集成使用单独的密钥，以便单独吊销。',
+    '持有者可以管理这个 Headscale 上的所有用户、设备和策略。请吊销任何你不认识的密钥。尽量为每个集成使用单独的密钥，以便单独吊销。',
   copyCommand: '复制命令',
   copied: '已复制',
   summary: '共 {total} 个密钥，{active} 个有效',

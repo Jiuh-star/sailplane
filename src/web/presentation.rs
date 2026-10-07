@@ -1,6 +1,6 @@
 //! Shaping Headscale data for the UI.
 //!
-//! The SPA needs views the raw API does not return: tags resolved across
+//! The SPA uses views the raw API does not return: tags resolved across
 //! Headscale versions, host info merged in, and capability flags flattened
 //! for template use.
 
@@ -173,7 +173,7 @@ pub struct MachineView {
     #[serde(flatten)]
     pub machine: Machine,
 
-    /// Effective tags, normalised across Headscale versions.
+    /// Effective tags, normalized across Headscale versions.
     pub tags: Vec<String>,
 
     pub ipv4: Option<String>,
@@ -201,7 +201,7 @@ pub struct MachineView {
 
 /// A short status badge for a machine.
 ///
-/// `key` is the stable identifier the UI translates; `label` is the English
+/// `key` is the stable identifier the UI translates. `label` is the English
 /// fallback, used when a client does not know the key yet.
 #[derive(Debug, Clone, Serialize)]
 pub struct StatusTag {
@@ -268,16 +268,18 @@ impl MachineView {
 
 /// Whether a machine advertises an exit route and whether one is approved.
 ///
+/// "Advertised" comes only from `availableRoutes`. Headscale keeps an approval
+/// in `approvedRoutes` after a machine stops advertising the route. It will
+/// also approve a route that was never advertised, so an approval alone does
+/// not make a machine an exit node. The approved flag is thus gated on the
+/// advertisement.
+///
 /// A dual-stack exit node advertises `0.0.0.0/0` and `::/0`, but that is one
 /// exit node, not two: callers collapse both routes into a single state.
 fn exit_route_state(machine: &Machine) -> (bool, bool) {
     let is_exit = |route: &String| Machine::is_exit_route(route);
-    let advertised = machine
-        .available_routes
-        .iter()
-        .chain(machine.approved_routes.iter())
-        .any(is_exit);
-    let approved = machine.approved_routes.iter().any(is_exit);
+    let advertised = machine.available_routes.iter().any(is_exit);
+    let approved = advertised && machine.approved_routes.iter().any(is_exit);
     (advertised, approved)
 }
 
@@ -326,7 +328,7 @@ fn status_tags(
     let available = &machine.available_routes;
 
     for route in available {
-        // Exit routes are reported by the single badge above.
+        // The single badge above reports exit routes.
         if Machine::is_exit_route(route) {
             continue;
         }
@@ -494,6 +496,34 @@ mod tests {
             .collect();
         assert_eq!(exit.len(), 1, "one badge for both exit routes: {exit:?}");
         assert_eq!(exit[0].key, "exitNode");
+    }
+
+    /// Headscale keeps `approvedRoutes` after a machine stops advertising a
+    /// route, and approves routes that were never advertised. Neither makes the
+    /// machine an exit node, so an approval without an advertisement stays off.
+    #[test]
+    fn an_approval_without_an_advertisement_is_not_an_exit_node() {
+        let machine: Machine = serde_json::from_str(
+            r#"{
+                "id": "1",
+                "givenName": "stale",
+                "availableRoutes": [],
+                "approvedRoutes": ["0.0.0.0/0", "::/0"]
+            }"#,
+        )
+        .unwrap();
+
+        let view = MachineView::build(&machine, None);
+        assert!(!view.exit_node);
+        assert!(!view.exit_approved);
+        assert!(
+            !view
+                .status_tags
+                .iter()
+                .any(|tag| tag.key.starts_with("exitNode")),
+            "no exit badge for an approval that was never advertised: {:?}",
+            view.status_tags
+        );
     }
 
     #[test]

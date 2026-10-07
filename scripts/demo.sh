@@ -244,6 +244,14 @@ integration:
   docker:
     enabled: true
     socket: unix://$XSOCK
+  # Deployment plumbing only: the sidecar in seed_agent exposes this socket and
+  # its SOCKS5 listener. Whether the agent and browser SSH are switched on is a
+  # web setting (Settings → Agent / SSH), so the demo leaves them off.
+  agent:
+    socket: $DEMO_DIR/agent-sock/tailscaled.sock
+  ssh:
+    proxy: 127.0.0.1:1086
+    username: root
 YAML
   chmod 600 "$DEMO_DIR/config.yaml"
 

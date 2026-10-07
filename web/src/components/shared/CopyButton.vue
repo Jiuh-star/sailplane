@@ -18,8 +18,8 @@ const state = ref<'idle' | 'copied' | 'failed'>('idle')
 const displayLabel = computed(() => props.label ?? t('common.copy'))
 
 /**
- * The accessible name, which appends the value. Falls back to a generic verb
- * when the caller passes `label=""`.
+ * The accessible name, which appends the value. When the caller passes
+ * `label=""`, it uses a generic verb.
  */
 const accessibleName = computed(() => {
   const verb = (props.label ?? '').trim() || t('common.copy')

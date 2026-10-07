@@ -13,20 +13,20 @@ use crate::auth::Capability;
 use super::super::error::{ApiError, ApiResult};
 use super::super::state::{Auth, PrincipalExt, SharedState};
 
-/// Rows returned when the caller does not ask for a size.
-const DEFAULT_LIMIT: i64 = 100;
-const MAX_LIMIT: i64 = 500;
+/// Rows per page when the caller does not ask for a size.
+const DEFAULT_PER_PAGE: i64 = 50;
+const MAX_PER_PAGE: i64 = 200;
 
 #[derive(Deserialize)]
 pub struct AuditQuery {
+    /// 1-based page number.
     #[serde(default)]
-    limit: Option<i64>,
-    /// Cursor: return entries older than this id.
+    page: Option<i64>,
     #[serde(default)]
-    before: Option<i64>,
+    per_page: Option<i64>,
 }
 
-/// Lists audit log entries. `GET /api/audit`
+/// Lists one page of audit log entries. `GET /api/audit`
 pub async fn list(
     State(state): State<SharedState>,
     Auth(principal): Auth,
@@ -35,16 +35,30 @@ pub async fn list(
     // The log names users and the actions taken against them.
     principal.require(&[Capability::ConfigureIam])?;
 
-    let limit = query.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
-    let entries = state
+    let per_page = query.per_page.unwrap_or(DEFAULT_PER_PAGE).clamp(1, MAX_PER_PAGE);
+    let page = query.page.unwrap_or(1).max(1);
+
+    let total = state
         .db
-        .list_audit(limit, query.before)
+        .count_audit()
         .map_err(|err| ApiError::internal(format!("{err:#}")))?;
 
-    let next = entries
-        .last()
-        .filter(|_| entries.len() as i64 == limit)
-        .map(|entry| entry.id);
+    // An entry-per-page of zero would divide by zero; `per_page` is clamped to
+    // at least one above, so `pages` is also at least one.
+    let pages = ((total + per_page - 1) / per_page).max(1);
+    let page = page.min(pages);
+    let offset = (page - 1) * per_page;
 
-    Ok(Json(json!({ "entries": entries, "next": next })))
+    let entries = state
+        .db
+        .list_audit(per_page, offset)
+        .map_err(|err| ApiError::internal(format!("{err:#}")))?;
+
+    Ok(Json(json!({
+        "entries": entries,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": pages,
+    })))
 }

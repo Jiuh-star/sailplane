@@ -1,14 +1,14 @@
 # Installation
 
 Sailplane ships as one binary. The binary contains the web UI, the JSON API and
-the server-sent event stream. You need Node.js only to build the frontend, and
-Rust only if you build from source.
+the server-sent event stream. Node.js is necessary only to build the frontend.
+Rust is necessary only if you build from source.
 
 ## Requirements
 
 - A Headscale server, version 0.27.0 or newer.
 - Rust stable and Node.js 20 or newer for the build.
-- A Linux host. Other Unix systems work; Windows is untested.
+- A Linux host. Other Unix systems work. Windows is untested.
 
 ## Build from source
 
@@ -29,9 +29,9 @@ install -d /etc/sailplane /var/lib/sailplane
 install -m600 config.yaml /etc/sailplane/config.yaml
 ```
 
-The service user needs write access to `server.data_path`. It also needs write
-access to the Headscale config file when you enable the DNS or restrictions
-pages.
+The service user must have write access to `server.data_path`. When you enable
+the DNS or restrictions pages, it must also have write access to the Headscale
+config file.
 
 ## First run
 
@@ -76,19 +76,19 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 ```
 
-Add `- /etc/headscale` to `ReadWritePaths` when Sailplane edits the Headscale
-config file.
+When Sailplane edits the Headscale config file, add `- /etc/headscale` to
+`ReadWritePaths`.
 
 ## Reverse proxy
 
 Forward the base path to Sailplane and everything else to Headscale. The default
 base path is `/admin`.
 
-Two endpoints need special care:
+Two endpoints are special:
 
 - `GET <base_path>/events/live` is a server-sent event stream. Disable proxy
   buffering. Sailplane already sends `X-Accel-Buffering: no`.
-- The terminal WebSocket under `<base_path>/ssh/` needs the HTTP upgrade headers.
+- The terminal WebSocket under `<base_path>/ssh/` must have the HTTP upgrade headers.
 
 nginx:
 
@@ -110,7 +110,7 @@ location / {
 }
 ```
 
-Set `server.base_url` to the public URL. OIDC login needs it to build the
+Set `server.base_url` to the public URL. OIDC login must have it to build the
 redirect URI.
 
 ## TLS
@@ -158,9 +158,9 @@ volumes:
   sailplane-data:
 ```
 
-The container listens on port 3000 and runs as root, because the optional
-sockets below and the Headscale config file are root-owned by default. It
-contains no `tailscale` CLI; the agent reads the sidecar socket instead.
+The container runs as root because the optional sockets below and the Headscale
+config file are root-owned by default. It listens on port 3000. It contains no
+`tailscale` CLI. The agent reads the sidecar socket instead.
 
 Mounts:
 

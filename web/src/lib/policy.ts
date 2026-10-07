@@ -1,9 +1,9 @@
 /**
- * Normalisers for the optional policy sections shared by the ACL editor and the
+ * Normalizers for the optional policy sections shared by the ACL editor and the
  * topology policy panel: `autoApprovers`, `nodeAttrs` and `postures`.
  *
- * These shapes come from Headscale and may be absent or malformed, so each
- * normaliser returns an empty list rather than throwing.
+ * These shapes come from Headscale and can be absent or malformed, so each
+ * normalizer returns an empty list rather than throwing.
  */
 import type { NodeAttr } from '@/lib/api'
 

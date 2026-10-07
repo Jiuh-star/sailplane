@@ -20,7 +20,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncReadWrite for T {}
 
 pub type Stream = Pin<Box<dyn AsyncReadWrite>>;
 
-/// A message travelling from the browser to the session.
+/// A message traveling from the browser to the session.
 #[derive(Debug, Clone)]
 pub enum SessionRequest {
     Data(Vec<u8>),
@@ -31,8 +31,8 @@ pub enum SessionRequest {
 pub struct SessionHandle {
     /// Input and resize requests for this session.
     pub requests: mpsc::Sender<SessionRequest>,
-    /// Terminal output; ends when the session closes. Taken once by the
-    /// bridge, which is the only consumer.
+    /// Terminal output. It ends when the session closes. The bridge, which is
+    /// the only consumer, takes it once.
     pub output: Option<mpsc::Receiver<Vec<u8>>>,
     /// The SSH connection. Held for its side effect: dropping it closes the
     /// session, so whoever owns the handle owns the session's lifetime.
@@ -89,7 +89,7 @@ pub async fn open(
     timeout: Duration,
 ) -> Result<SessionHandle> {
     let client_config = Arc::new(Config {
-        // Keep every algorithm the server is willing to negotiate; tailnet
+        // Keep every algorithm the server is willing to negotiate. Tailnet
         // appliances and embedded sshd builds vary widely.
         preferred: russh::Preferred::default(),
         ..Config::default()
@@ -201,7 +201,7 @@ async fn authenticate(
 
     bail!(
         "the server rejected every configured SSH credential for `{username}`. For Tailscale \
-         SSH, check the ACL `ssh` rules; for a plain sshd, set `integration.ssh.private_key_path`."
+         SSH, check the ACL `ssh` rules. For a plain sshd, set `integration.ssh.private_key_path`."
     )
 }
 
@@ -222,7 +222,7 @@ async fn try_public_key(
         }
     };
 
-    // RSA keys need an explicit hash algorithm; let the server advertise one.
+    // RSA keys must have an explicit hash algorithm. Let the server advertise one.
     let hash_alg = session
         .best_supported_rsa_hash()
         .await

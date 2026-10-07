@@ -17,7 +17,7 @@ use crate::integrations::Integration;
 
 use super::error::ApiError;
 
-/// Everything a handler needs.
+/// Everything necessary for a handler.
 pub struct AppState {
     /// Runtime configuration. Read a fresh snapshot per request so a saved
     /// setting takes effect without a restart.
@@ -33,7 +33,7 @@ pub struct AppState {
     pub agent: AgentService,
     pub ssh: crate::ssh::SshService,
     pub oidc: Option<Arc<crate::auth::oidc::OidcProvider>>,
-    /// Flips to `true` when the process is shutting down.
+    /// Flips to `true` when the process shuts down.
     ///
     /// The event feed, the log tail and the terminal hold a connection open
     /// indefinitely, and graceful shutdown waits for them, so they watch this
@@ -52,7 +52,25 @@ impl AppState {
     /// than on the next poll.
     pub fn reload_settings(&self) -> anyhow::Result<()> {
         self.settings.reload(&self.db)?;
-        self.headscale.set_base_url(&self.config().headscale.url);
+        let config = self.config();
+        self.headscale.set_base_url(&config.headscale.url);
+
+        // The agent and browser SSH capture their configuration at startup, so
+        // push the fresh snapshot into them too. This is what lets either be
+        // enabled or disabled from the web without restarting Sailplane.
+        self.agent.reconfigure(
+            config.agent_config(),
+            crate::agent::disabled_reason(&config, &self.headscale),
+            config
+                .headscale
+                .api_key
+                .clone()
+                .map(|key| self.headscale.client(key)),
+        );
+        let ssh_config = config.ssh_config();
+        let ssh_reason = crate::ssh::disabled_reason(&ssh_config);
+        self.ssh.reconfigure(ssh_config, ssh_reason);
+
         Ok(())
     }
 
@@ -82,7 +100,7 @@ impl AppState {
         self.config().headscale.resolved_public_url()
     }
 
-    /// The API key every server-initiated Headscale call should use.
+    /// The API key that every server-initiated Headscale call uses.
     pub fn admin_api_key(&self) -> Option<String> {
         self.config().headscale.api_key.clone()
     }
@@ -94,7 +112,7 @@ impl AppState {
 
     /// An API client authenticated as the given principal.
     ///
-    /// API-key sessions use their own key; everyone else uses the configured
+    /// API-key sessions use their own key. Everyone else uses the configured
     /// admin key, exactly like upstream.
     pub fn client_for(&self, principal: &Principal) -> Option<crate::headscale::ApiClient> {
         match principal {

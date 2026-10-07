@@ -1,7 +1,7 @@
 export default {
   title: 'Headscale 日志',
   description:
-    '直接来自容器运行时的日志。只有 docker 集成能读取它——Headscale 自身没有日志接口。',
+    '直接来自容器运行时的日志。只有 docker 集成能读取它。Headscale 自身没有日志接口。',
   history: '历史行数',
   lines: '{count} 行',
   follow: '实时跟随',

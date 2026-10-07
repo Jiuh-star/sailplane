@@ -14,7 +14,7 @@ export default {
   notConfigured: 'Not configured',
   provider: {
     title: 'Provider',
-    description: 'Where machines are sent to sign in, and what Headscale identifies itself as.',
+    description: 'Where machines sign in, and what Headscale identifies itself as.',
     issuer: 'Issuer URL',
     clientId: 'Client ID',
     scope: 'Scope',
@@ -25,13 +25,13 @@ export default {
     present: 'A secret is set',
     absent: 'No secret set',
     fromPath: 'Read from {path}',
-    hint: 'The value is never sent back to the browser: replacing it writes a new one, and an unchanged form leaves it alone.',
+    hint: 'Sailplane never sends the value back to the browser. If you replace it, Sailplane writes a new value. If you do not change the form, the value stays.',
     placeholder: 'New client secret',
     replace: 'Replace',
     clear: 'Clear',
   },
   behaviour: {
-    title: 'Behaviour',
+    title: 'Behavior',
     description: 'How strict the flow is, and how long the resulting keys live.',
     pkce: 'PKCE',
     pkceHint: 'Recommended. Leave it on unless the provider rejects it.',
@@ -42,7 +42,7 @@ export default {
   },
   legacyExpiry: {
     title: 'Headscale will not start with `oidc.expiry`',
-    body: 'Headscale 0.29 removed this key in favour of `node.expiry`. The server refuses to start while the key is in the configuration file.',
+    body: 'Headscale 0.29 removed this key in favor of `node.expiry`. The server refuses to start while the key is in the configuration file.',
     action: 'Remove the key',
     removed: '`oidc.expiry` removed',
   },

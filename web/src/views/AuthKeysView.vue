@@ -84,8 +84,9 @@ load()
 const selfService = computed(() => data.value?.selfServiceOnly ?? false)
 
 /**
- * A key needs an owner or ACL tags; the server rejects a request with neither.
- * Tag-only mode hides the user field, so a selected user no longer counts.
+ * A key must have an owner or ACL tags. The server rejects a request with
+ * neither. Tag-only mode hides the user field, so a selected user no longer
+ * counts.
  */
 const canCreateKey = computed(() => {
   if (aclTags.value.trim()) return true
@@ -190,7 +191,7 @@ async function deleteKey(key: PreAuthKey) {
   }
 }
 
-/** Whether the key carries any badge; without one the card row is empty. */
+/** Whether the key carries any badge. Without one the card row is empty. */
 function hasAttributes(key: PreAuthKey): boolean {
   return key.reusable || key.ephemeral || key.used || isExpired(key)
 }
@@ -321,7 +322,7 @@ async function copyCommand() {
                 >
                   {{ t('authKeys.expire') }}
                 </Button>
-                <!-- Deleting removes the row; expiring only marks it. -->
+                <!-- Deleting removes the row. Expiring only marks it. -->
                 <Button
                   v-if="key.id"
                   size="sm"

@@ -6,7 +6,7 @@ export default {
   disabled: {
     title: 'Agent not enabled',
     description:
-      'Enable it under {config} to see per-machine versions, endpoints and client connectivity.',
+      'Turn on “Enable the Sailplane proxy” under {config} in Settings to see per-machine versions, endpoints and client connectivity. It takes effect as soon as you save.',
   },
   status: {
     healthy: 'Healthy',
@@ -18,7 +18,7 @@ export default {
   syncNow: 'Sync now',
   approval: {
     title: 'Agent needs approval',
-    description: "The agent's own machine has not been approved on the tailnet yet.",
+    description: "The agent's own machine is not approved on the tailnet yet.",
     action: 'Approve the agent',
   },
   syncError: {

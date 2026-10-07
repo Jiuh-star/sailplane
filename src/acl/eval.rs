@@ -1,4 +1,4 @@
-//! Whether one machine may reach another, according to a policy.
+//! Whether one machine can reach another, according to a policy.
 //!
 //! Headscale compiles the policy into a packet filter and does not answer
 //! reachability questions. This module re-implements the decision for the UI:
@@ -238,7 +238,7 @@ pub fn evaluate_with(
             continue;
         };
 
-        // Both ends match; the port decides whether the rule applies at all.
+        // Both ends match. The port decides whether the rule applies at all.
         if !rule_ports.matches(query.port) {
             rules.push(outcome);
             continue;
@@ -262,7 +262,7 @@ pub fn evaluate_with(
         }
     }
 
-    // Grants are evaluated after acls; the first match across both sections
+    // Grants are evaluated after acls. The first match across both sections
     // decides, matching Headscale's order.
     for (index, rule) in policy.grant_rules().iter().enumerate() {
         let mut outcome = RuleOutcome::from_grant(index, rule);
@@ -284,7 +284,7 @@ pub fn evaluate_with(
         };
 
         if rule.ip.is_empty() {
-            if rule.app.is_empty() {
+            if !rule.has_app() {
                 note_once(
                     &mut notes,
                     "a grant has neither `ip` nor `app`, so it is not evaluated",
@@ -391,7 +391,7 @@ pub fn expand(
             if nodes.is_empty() {
                 note_once(
                     notes,
-                    "`autogroup:internet` names exit nodes; none is approved in this tailnet",
+                    "`autogroup:internet` names exit nodes. None is approved in this tailnet",
                 );
             }
             return nodes;
@@ -402,7 +402,7 @@ pub fn expand(
             if nodes.is_empty() {
                 note_once(
                     notes,
-                    "`autogroup:admin` matches Sailplane owner/admin accounts; none is linked \
+                    "`autogroup:admin` matches Sailplane owner/admin accounts. None is linked \
                      to a Headscale user here",
                 );
             }
@@ -447,7 +447,7 @@ fn by_selector(
         .collect()
 }
 
-/// Whether a machine is named by a selector, including dynamic autogroups.
+/// Whether a selector names a machine, including dynamic autogroups.
 fn matches_selector(
     policy: &Policy,
     machine: &MachineRef,
@@ -540,7 +540,7 @@ fn matching_selector(
 
 /// Finds the first destination selector that names one of `machines`.
 ///
-/// The ports stay attached to the host until the host has been matched.
+/// The ports stay attached to the host until the host matches.
 fn matching_destination(
     policy: &Policy,
     machines: &[MachineRef],
@@ -599,8 +599,8 @@ fn ip_spec_matches(spec: &str, protocol: &str, port: u16) -> bool {
 /// Splits `host:ports`, tolerating the colons inside IPv6 addresses.
 ///
 /// A bare address, including IPv6, is always a host: `fd7a::1` cannot be told
-/// apart from `fd7a::` plus port 1, so an IPv6 literal with a port must be
-/// bracketed, as Headscale requires.
+/// apart from `fd7a::` plus port 1, so you must bracket an IPv6 literal that
+/// has a port, as Headscale demands.
 pub fn split_destination(destination: &str) -> (String, Ports) {
     let destination = destination.trim();
     if destination.is_empty() {
@@ -720,7 +720,7 @@ fn is_address_or_cidr(value: &str) -> bool {
     value.contains('/') || value.parse::<IpAddr>().is_ok()
 }
 
-/// Whether `address` falls inside `pattern`, which may be an address or a CIDR.
+/// Whether `address` falls inside `pattern`, which can be an address or a CIDR.
 fn address_in(pattern: &str, address: &str) -> bool {
     let Ok(address) = address.parse::<IpAddr>() else {
         return false;
@@ -846,7 +846,7 @@ mod tests {
         assert_eq!(report.destination_machines[0].name, "server");
     }
 
-    /// A later rule must not rescue traffic the first matching rule would allow
+    /// A later rule must not rescue traffic the first matching rule would accept
     /// on a different port.
     #[test]
     fn ports_outside_the_rule_fall_through_to_the_next_match() {
@@ -856,7 +856,7 @@ mod tests {
             &query("alice@", "tag:server:9999", 9999),
         );
 
-        // Rule 0 allows only 22 and 80; rule 1 is `alice@ -> *:*`.
+        // Rule 0 accepts only 22 and 80. Rule 1 is `alice@ -> *:*`.
         assert!(report.allowed);
         assert_eq!(report.decision.unwrap().index, 1);
         assert!(!report.rules[0].matched);
@@ -950,7 +950,7 @@ mod tests {
         assert_eq!(split_destination("100.64.0.1").0, "100.64.0.1");
         assert_eq!(split_destination("tag:server:22,80").0, "tag:server");
 
-        // An address is never split, so an IPv6 target needs brackets.
+        // An address is never split, so an IPv6 target must have brackets.
         assert_eq!(
             split_destination("fd7a:115c:a1e0::1").0,
             "fd7a:115c:a1e0::1"
@@ -1035,7 +1035,7 @@ mod tests {
             &query("autogroup:member", "*:*", 22),
             &EvalContext::default(),
         );
-        // Two of the three fixture machines are owned by a user; the tagged
+        // Two of the three fixture machines are owned by a user. The tagged
         // server is not.
         assert_eq!(member.source_machines.len(), 2);
 

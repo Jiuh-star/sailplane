@@ -1,9 +1,10 @@
 //! Host info collected from a Tailscale daemon.
 //!
-//! The Headscale API does not expose per-node `HostInfo`, so the data comes from
-//! a Tailscale node on the tailnet via LocalAPI: netmap, then status, then the
-//! `tailscale` CLI. Netmap needs root or `--operator`; status cannot report peer
-//! versions. Results are keyed by node key, as Headscale's `nodeKey`.
+//! The Headscale API does not expose per-node `HostInfo`. Thus the data comes
+//! from a Tailscale node on the tailnet through LocalAPI: netmap, then status,
+//! then the `tailscale` CLI. For netmap, you must have root or `--operator`.
+//! Status cannot report peer versions. Results are keyed by node key, as
+//! Headscale's `nodeKey`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,10 +18,10 @@ use crate::unix_socket;
 /// Where a default tailscaled listens on Linux.
 pub const DEFAULT_SOCKET: &str = "/var/run/tailscale/tailscaled.sock";
 
-/// The `Host` sentinel tailscaled requires on LocalAPI requests.
+/// The `Host` sentinel that tailscaled expects on LocalAPI requests.
 const LOCALAPI_HOST: &str = "local-tailscaled.sock";
 
-/// How long the CLI fallback may take.
+/// How long the CLI fallback can take.
 const CLI_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Where host info came from, surfaced in the agent status.
@@ -41,7 +42,7 @@ impl Source {
     }
 }
 
-/// Collects host info, trying each source in turn.
+/// Tries each source in turn to collect host info.
 ///
 /// Returns the data and the source that produced it, so the UI can explain
 /// which fields are available.
@@ -101,7 +102,7 @@ pub async fn probe(socket: Option<&Path>) -> Option<Source> {
     }
 
     // Any other status (403 for a non-root caller, 404 on an older daemon)
-    // means debug actions are unavailable; the status endpoint still works.
+    // means debug actions are unavailable. The status endpoint still works.
     if let Ok(response) = unix_socket::request_from(
         socket,
         "GET",

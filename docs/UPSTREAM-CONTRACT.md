@@ -1,7 +1,7 @@
 # Upstream contract (Headplane 0.7.1)
 
 Reference notes extracted from [`tale/headplane`](https://github.com/tale/headplane)
-v0.7.1 (React Router 7 + Node). Sailplane targets this behavioural contract.
+v0.7.1 (React Router 7 + Node). Sailplane targets this behavioral contract.
 
 Lines marked **Sailplane:** record a deliberate deviation. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for the reasons.
@@ -10,8 +10,8 @@ Lines marked **Sailplane:** record a deliberate deviation. See
 
 Base `<headscale.url>/api`. Auth: `Authorization: Bearer <api key>`.
 Every request sends `Accept: application/json`. Upstream sends
-`User-Agent: Headplane/<version>`; **Sailplane:** sends `Sailplane/<version>`.
-Query params only on GET/DELETE; JSON body only on POST/PUT/PATCH.
+`User-Agent: Headplane/<version>`. **Sailplane:** sends `Sailplane/<version>`.
+Query params only on GET/DELETE. JSON body only on POST/PUT/PATCH.
 
 Public (unauthenticated):
 
@@ -37,9 +37,9 @@ Authenticated:
 | POST   | `/api/v1/user`                         | `{name,email?,displayName?,pictureUrl?}`                      |
 | DELETE | `/api/v1/user/{id}`                    | —                                                             |
 | POST   | `/api/v1/user/{id}/rename/{newName}`   | —                                                             |
-| GET    | `/api/v1/preauthkey`                   | `?user=<id>`; unfiltered list only on 0.28+                   |
+| GET    | `/api/v1/preauthkey`                   | `?user=<id>`, unfiltered list on 0.28+ only                   |
 | POST   | `/api/v1/preauthkey`                   | `{ephemeral,reusable,expiration,user?,aclTags?}`              |
-| POST   | `/api/v1/preauthkey/expire`            | 0.28+: `{id}`; pre-0.28: `{user:<numeric id>,key}`            |
+| POST   | `/api/v1/preauthkey/expire`            | 0.28+: `{id}`. Pre-0.28: `{user:<numeric id>,key}`            |
 | GET    | `/api/v1/apikey`                       | `{"apiKeys":[...]}`                                           |
 | GET    | `/api/v1/policy`                       | `{"policy":"<huJSON>","updatedAt":string|null}`               |
 | PUT    | `/api/v1/policy`                       | `{"policy":"<huJSON>"}`                                       |
@@ -63,7 +63,7 @@ Minimum supported: **0.27.0**.
 ### Version-specific quirks
 
 - Register key: strip `hskey-authreq-` prefix below 0.29.0.
-- Node tags: 0.28+ uses `tags`; below that, union of `forcedTags` + `validTags`.
+- Node tags: 0.28+ uses `tags`. Below that, it uses the union of `forcedTags` + `validTags`.
 - Node owner change: unsupported on 0.28+ (`nodeOwnerIsImmutable`).
 - Pre-auth key IDs only exist on 0.28+.
 
@@ -114,7 +114,8 @@ API-key sessions bypass all role checks (full access).
 - `auth_sessions(id PK ulid, kind, user_id, api_key_hash, api_key_display, oidc_id_token,
    expires_at, created_at)`.
 
-First user to log in becomes `owner`; `owner` is never assignable via role claim.
+First user to log in becomes `owner`. Sailplane never assigns `owner` through a
+role claim.
 
 ## Cookies
 
@@ -124,17 +125,18 @@ First user to log in becomes `owner`; `owner` is never assignable via role claim
 - `__oidc_state` — httpOnly, 30 min, path `<base>/oidc/callback`, holds `{state,nonce,verifier,redirect_uri}`.
 - `color_scheme` — `dark|light|system`, 34560000 s.
 
-No CSRF tokens and no security headers upstream; same-site Lax cookies are the only protection.
-**Sailplane: adds CSRF protection and the usual security headers** — see
+No CSRF tokens and no security headers upstream. Same-site Lax cookies are the
+only protection. **Sailplane: adds CSRF protection and the usual security
+headers** — see
 [ARCHITECTURE.md](ARCHITECTURE.md#security-position).
 
 ## Server surface
 
 - `GET /healthz` → `{status}` 200/500.
-- `GET /api/info` → requires `server.info_secret` (403 when unset, 401/403 on bad bearer).
+- `GET /api/info` → `server.info_secret` is necessary (403 when unset, 401/403 on bad bearer).
 - `POST /api/color-scheme` → sets cookie, redirects to same-origin `returnTo`.
-- `GET /events/live` → SSE; `hello` with resource versions, then `changed` events;
-  `: heartbeat` every 30 s. Nodes polled every 5 s, users every 15 s.
+- `GET /events/live` → SSE. `hello` with resource versions, then `changed` events.
+  `: heartbeat` every 30 s. The server polls nodes every 5 s and users every 15 s.
   **Sailplane:** sends a heartbeat every 15 s.
 - `/login`, `/logout`, `/oidc/start`, `/oidc/callback`, `/ssh/:id`.
 - SPA under `<base>` (default `/admin`).
@@ -148,23 +150,26 @@ No CSRF tokens and no security headers upstream; same-site Lax cookies are the o
 
 ## Headscale config file edits
 
-YAML parsed preserving comments/order (upstream uses the `yaml` Document API).
-Keys touched: `dns.magic_dns`, `dns.base_domain`, `dns.nameservers.global`,
-`dns.nameservers.split.<name>` (null deletes), `dns.search_domains`, `dns.override_local_dns`,
-`dns.extra_records`, `oidc.allowed_domains/_groups/_users`.
-DNS records may live in a separate **JSON array** file (`dns.extra_records_path`),
-rewritten with 4-space indent. After any patch the configured integration reloads Headscale.
+Sailplane parses YAML with comments and order preserved (upstream uses the
+`yaml` Document API). Keys touched: `dns.magic_dns`, `dns.base_domain`,
+`dns.nameservers.global`, `dns.nameservers.split.<name>` (null deletes),
+`dns.search_domains`, `dns.override_local_dns`, `dns.extra_records`,
+`oidc.allowed_domains/_groups/_users`.
+DNS records can live in a separate **JSON array** file (`dns.extra_records_path`).
+Sailplane rewrites that file with a 4-space indent. After any patch, the
+configured integration reloads Headscale.
 
 ## Integrations
 
-Exactly one of `docker` / `kubernetes` / `proc` may be enabled (`agent` is independent).
+You can enable exactly one of `docker` / `kubernetes` / `proc` (`agent` is independent).
 
 - **docker**: Engine API over `unix://` (or `tcp://`), API ≥ 1.24, target 1.44. Find container
-  by name or label `me.tale.headplane.target=headscale`; `POST /containers/{id}/restart`;
-  then poll Headscale `/health` 10× at 1 s.
+  by name or label `me.tale.headplane.target=headscale`. Then `POST /containers/{id}/restart`.
+  Then poll Headscale `/health` 10× at 1 s.
   **Sailplane:** looks for `sailplane.target=headscale` by default, or a container name.
-- **kubernetes**: in-cluster service account; optionally validate the pod has
-  `shareProcessNamespace`; find the `headscale serve` PID in `/proc`, SIGHUP it, poll health.
+- **kubernetes**: in-cluster service account. Optionally validate that the pod has
+  `shareProcessNamespace`. Find the `headscale serve` PID in `/proc`, send SIGHUP, and poll
+  health.
 - **proc**: same /proc scan + SIGHUP.
 
 ## Agent / WebSSH
@@ -177,13 +182,13 @@ Upstream ships two Go components:
   joins the tailnet.
 
 **Sailplane:** replaces both with one rootless `tailscaled` sidecar, with no custom
-binaries. The LocalAPI netmap provides the host info. A server-side SSH client reaches the
+binaries. The LocalAPI netmap gives the host info. A server-side SSH client reaches the
 tailnet through the sidecar's SOCKS5 proxy. See
 [ARCHITECTURE.md](ARCHITECTURE.md#the-go-components-replaced).
 
 Two upstream constraints still apply:
 
-- The netmap endpoint requires debug access (root, or `tailscale set --operator`). Without
-  it, the client version is unavailable.
-- Host keys are accepted unverified. Tailscale SSH has none; WireGuard authenticates the
-  peer. For an ordinary sshd target, the operator chose to trust the target.
+- Debug access is necessary for the netmap endpoint (root, or `tailscale set --operator`).
+  Without it, the client version is unavailable.
+- Sailplane accepts host keys unverified. Tailscale SSH has none. WireGuard authenticates
+  the peer. For an ordinary sshd target, the operator chose to trust the target.

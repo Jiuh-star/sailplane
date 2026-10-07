@@ -1,7 +1,7 @@
 /**
- * Internationalisation. Messages live in `src/locales/<tag>.ts`; the active
+ * Internationalization. Messages live in `src/locales/<tag>.ts`. The active
  * locale persists to `localStorage` and defaults to the browser's preference.
- * All messages are bundled, so switching locale never hits the network.
+ * The build bundles all messages, so a locale switch never hits the network.
  */
 
 import { createI18n } from 'vue-i18n'
@@ -27,7 +27,7 @@ function isSupported(tag: string): tag is LocaleTag {
 function detectLocale(): LocaleTag {
   for (const candidate of navigator.languages ?? [navigator.language]) {
     if (isSupported(candidate)) return candidate
-    // Every `zh-*` tag lands on the simplified translation; there is no
+    // Every `zh-*` tag lands on the simplified translation. There is no
     // traditional translation to prefer yet.
     const base = candidate.split('-')[0]
     if (base === 'zh') return 'zh-CN'

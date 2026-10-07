@@ -28,19 +28,19 @@ The script prints a freshly created login API key.
 
 ## Notes on the setup
 
-- Headscale needs at least one DERP region. This host has an outbound proxy that
-  the container cannot reach, so the demo mounts a placeholder DERP map at
-  `/etc/headscale/derp.yaml`. The demo only uses the control-plane API, so no
-  region is ever dialled.
-- The demo nodes run `tailscale up --tun=userspace-networking`, which needs no
-  `NET_ADMIN`.
+- Headscale must have at least one DERP region. This host has an outbound proxy
+  that the container cannot reach, so the demo mounts a placeholder DERP map at
+  `/etc/headscale/derp.yaml`. The demo only uses the control-plane API, so the
+  demo never dials a region.
+- The demo nodes run `tailscale up --tun=userspace-networking`, which works
+  without `NET_ADMIN`.
 - Headscale's `server_url` is `http://127.0.0.1:8085`. The node containers share
   the host network namespace, so they can reach it.
 - `ts-demo-server` runs `tailscale up --ssh`, so it is a real Tailscale SSH
   target. The browser terminal opens a session into it through the sidecar's
   SOCKS5 proxy.
-- `tailscale serve` needs root. The demo is therefore reachable at
-  `http://<tailnet-ip>:8080/admin/`, not over an HTTPS `*.ts.net` name. For a
+- `tailscale serve` must have root access. As a result, the demo is reachable
+  at `http://<tailnet-ip>:8080/admin/`, not over an HTTPS `*.ts.net` name. For a
   friendlier URL, run `sudo tailscale serve --bg --http=80
   http://127.0.0.1:8080`.
 
@@ -61,8 +61,8 @@ Run them with the demo up:
 uv run --with playwright python3 tests/browser/crud.py
 ```
 
-Point `BASE` at the tailnet address (`http://<node>:8080/admin`) instead of
-`127.0.0.1` when checking clipboard or origin behaviour. `127.0.0.1` is a secure
+When you check clipboard or origin behavior, point `BASE` at the tailnet address
+(`http://<node>:8080/admin`) instead of `127.0.0.1`. `127.0.0.1` is a secure
 context and the tailnet address is not.
 
 `crud.py` pins the UI locale to English, because it selects elements by their

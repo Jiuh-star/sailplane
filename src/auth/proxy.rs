@@ -1,8 +1,8 @@
 //! Proxy authentication.
 //!
-//! A trusted reverse proxy (nginx basic auth, Authelia, Authentik) performs the
+//! A trusted reverse proxy (nginx basic auth, Authelia, Authentik) does the
 //! login and passes the identity in a header. Two gates apply: the direct peer
-//! must fall inside `allowed_cidrs`, and the `ip_header` is honoured only when
+//! must fall inside `allowed_cidrs`, and the `ip_header` is honored only when
 //! the peer is also inside `trusted_proxy_cidrs`.
 
 use std::net::IpAddr;
@@ -82,7 +82,7 @@ impl Cidr {
     }
 }
 
-/// Parses a list of CIDR strings, ignoring unparseable entries.
+/// Parses a list of CIDR strings and ignores unparseable entries.
 pub fn parse_cidrs(inputs: &[String]) -> Vec<Cidr> {
     inputs
         .iter()
@@ -105,9 +105,9 @@ pub struct ProxyIdentity {
 
 /// Extracts and validates the proxy identity for a request.
 ///
-/// `direct_peer` is the socket address the request arrived on; it is never
+/// `direct_peer` is the socket address the request arrived on. It is never
 /// taken from a header. Returns `None` when proxy auth does not apply or the
-/// request is not permitted to authenticate.
+/// request cannot authenticate.
 pub fn resolve(
     config: &ProxyAuthConfig,
     direct_peer: IpAddr,

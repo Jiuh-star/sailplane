@@ -19,7 +19,7 @@ export default {
     title: 'Local map files',
     description: 'Paths on the Headscale host, for a map you maintain yourself.',
     empty: 'No file configured.',
-    hint: 'Headscale reads the path, so the file must exist inside its container or on its host. It does not need to exist here.',
+    hint: 'Headscale reads the path, so the file must exist inside its container or on its host. The file can be absent here.',
   },
   updates: {
     title: 'Updates',
@@ -31,7 +31,17 @@ export default {
   server: {
     title: 'Embedded DERP server',
     description: 'Run a relay inside Headscale itself, for a tailnet with no other reachable relay.',
-    hint: 'Enabling this needs `derp.server.stun_listen_addr`, a private key path and reachable ports. Edit those in the config file.',
+    hint: 'To enable this, you must set `derp.server.stun_listen_addr`, a private key path and reachable ports. Edit those in the config file.',
+  },
+  relays: {
+    title: 'Relay servers',
+    description: 'The regions and servers the configured sources resolve to. Sailplane fetches the URLs live.',
+    empty: 'No relay servers found',
+    emptyDescription: 'Add a map URL, a local map file, or enable the embedded server above.',
+    unnamed: 'Unnamed region',
+    count: '{count} server | {count} servers',
+    derpPort: 'DERP {port}',
+    stunPort: 'STUN {port}',
   },
   toast: {
     urlAdded: 'Relay URL added',

@@ -11,8 +11,9 @@ enabled, the process stays under 50 MB RSS.
 
 It is a from-scratch reimplementation of
 [`tale/headplane`](https://github.com/tale/headplane) in Rust and Vue 3. The
-configuration schema, the HTTP surface and the Headscale API contracts match.
-The product names, environment variables and default paths do not; see the
+configuration schema, the HTTP surface and the Headscale API contracts are the
+same as the upstream project. The product names, environment variables and
+default paths are different. Refer to the
 [migration table](docs/CONFIGURATION.md#migrating-from-upstream-headplane).
 
 <div align="center">
@@ -22,32 +23,33 @@ The product names, environment variables and default paths do not; see the
 
 ## Features
 
-- **Machines** — search, filters and sorting; per-machine detail with routes,
-  addresses and client connectivity; register, rename, expire, edit routes and
-  tags, change owner, delete.
-- **Users** — Headscale users and Sailplane accounts side by side; create,
-  rename, delete, link, assign roles, transfer ownership.
-- **Access control** — a structured editor for `acls`, `ssh`, `hosts`, `groups`
-  and `tagOwners`, plus a HuJSON editor with a side-by-side diff. Unknown keys
-  are preserved.
-- **Access checker** — ask whether one machine may reach another on a port. The
-  answer names the rule that decided it. Headscale enforces a policy; Sailplane
-  explains one.
-- **Topology** — the policy drawn as a graph, with the route hubs and relay
-  regions of the tailnet.
-- **DNS and DERP** — the DNS settings and the relay map, written back into the
-  Headscale config file.
-- **Audit log** — every state-changing request, with actor and result. The
-  database keeps the most recent 5000 entries.
-- **Auth** — Headscale API keys, OpenID Connect (PKCE, discovery, role claims)
-  and trusted reverse-proxy authentication.
-- **Configuration in the UI** — every setting is stored in the database and
-  edited from the Deployment page, with a first-run onboarding wizard. A legacy
-  YAML file is imported once, then deprecated.
-- **Live updates** — server-sent events push node and user changes to every open
-  browser.
-- **Browser SSH** — open a terminal to a tailnet node from the browser.
-- **English and Simplified Chinese**, following the browser language.
+- **Machines**: Search, filter and sort the list. Open a machine to see its
+  routes, addresses and connectivity. Register, rename, expire or delete a
+  machine. Edit routes and tags, or change the owner.
+- **Users**: Manage Headscale users and Sailplane accounts in one place. Create,
+  rename or delete an account, link the two, assign roles, or transfer
+  ownership.
+- **Access control**: Edit `acls`, `ssh`, `hosts`, `groups` and `tagOwners` in a
+  structured editor. A HuJSON editor shows a side-by-side diff. Sailplane keeps
+  unknown keys.
+- **Access checker**: Ask if one machine can reach another machine on a port.
+  The answer names the rule that decided it. Headscale enforces a policy.
+  Sailplane explains the policy.
+- **Topology**: See the policy as a graph, together with the route hubs and the
+  relay regions of the tailnet.
+- **DNS and DERP**: Edit the DNS settings and the relay map. Sailplane writes the
+  changes into the Headscale config file.
+- **Audit log**: See every request that changes state, with the actor and the
+  result. The database keeps the most recent 5000 entries.
+- **Auth**: Sign in with a Headscale API key, OpenID Connect (PKCE, discovery,
+  role claims), or trusted reverse-proxy authentication.
+- **Configuration in the UI**: Sailplane stores every setting in its database.
+  Edit the settings from the Deployment page, or use the first-run onboarding
+  wizard. Sailplane imports a legacy YAML file one time and then stops using it.
+- **Live updates**: Server-sent events push machine and user changes to every
+  open browser.
+- **Browser SSH**: Open a terminal to a tailnet machine from the browser.
+- **English and Simplified Chinese**: The UI follows the browser language.
 
 ## Installation
 
@@ -71,7 +73,7 @@ reverse-proxy setup and a systemd unit. Container images are published to
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Known failure modes and fixes |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Build, test, demo, locales, comment style |
 | [DEMO.md](docs/DEMO.md) | A self-contained demo with a throwaway Headscale |
-| [UPSTREAM-CONTRACT.md](docs/UPSTREAM-CONTRACT.md) | The upstream behaviour this project targets |
+| [UPSTREAM-CONTRACT.md](docs/UPSTREAM-CONTRACT.md) | The upstream behavior this project targets |
 
 ## Getting help
 
@@ -82,7 +84,7 @@ output of `sailplane --show-config` with the secrets redacted.
 
 Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) first. Keep `cargo test` and
 `cargo clippy --all-targets` green, follow the comment style, and change the
-coupled locale keys on both sides.
+coupled locale keys in both languages.
 
 ## License
 
@@ -90,8 +92,7 @@ MIT
 
 ## AI Content Disclosure
 
-The code, comments and documentation in this repository are written by 
-Anthropic's Claude Code, an AI coding agent. The maintainer sets the
-requirements, reviews changes and runs the tests, but AI output can
-contain mistakes. Review the code before you deploy it, and report problems
-in the issue tracker.
+Anthropic's Claude Code, an AI coding agent, writes the code, comments and
+documentation in this repository. The maintainer sets the requirements, reviews
+changes and runs the tests, but AI output can contain mistakes. Review the code
+before you deploy it. Report problems in the issue tracker.

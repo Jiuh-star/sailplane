@@ -1,6 +1,6 @@
 //! OpenID Connect login.
 //!
-//! The flow is hand-rolled to match upstream: manual endpoint overrides skip
+//! The flow is hand-rolled to match upstream. Manual endpoint overrides skip
 //! discovery, the token request retries with the other client-auth method on
 //! `invalid_client`, and the subject falls back through `subject_claims`.
 
@@ -36,7 +36,7 @@ pub struct ProviderMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OidcError {
-    /// The discovery document could not be fetched.
+    /// Sailplane could not fetch the discovery document.
     DiscoveryFailed,
     /// The provider does not advertise the required endpoints.
     MissingEndpoints,
@@ -66,7 +66,7 @@ pub struct OidcProfile {
     pub id_token: String,
 }
 
-/// The OIDC provider, holding cached discovery and JWKS state.
+/// The OIDC provider that holds cached discovery and JWKS state.
 pub struct OidcProvider {
     config: OidcConfig,
     http: reqwest::Client,
@@ -89,7 +89,7 @@ impl OidcProvider {
             auth_method: RwLock::new(None),
         }))
     }
-    /// Resolves the provider endpoints, using manual overrides when the three
+    /// Resolves the provider endpoints and uses manual overrides when the three
     /// required endpoints are configured.
     pub async fn discover(&self) -> Result<ProviderMetadata, OidcError> {
         if let Some(metadata) = self.metadata.read().await.clone() {
@@ -404,8 +404,8 @@ impl OidcProvider {
                 form.push(("client_secret".into(), client_secret.to_string()));
             }
             TokenEndpointAuthMethod::ClientSecretJwt => {
-                // `client_secret_jwt` needs an HS256 assertion. Providers that
-                // require it are rare, so this falls back to basic auth and
+                // `client_secret_jwt` uses an HS256 assertion. That assertion is
+                // rarely necessary, so this falls back to basic auth and
                 // lets the retry logic negotiate.
                 request = request.basic_auth(&self.config.client_id, Some(client_secret));
             }
@@ -427,7 +427,7 @@ impl OidcProvider {
 
             if error.contains("pkce") || description.to_ascii_lowercase().contains("pkce") {
                 bail!(
-                    "the identity provider rejected PKCE; disable oidc.use_pkce or enable PKCE \
+                    "the identity provider rejected PKCE. Disable oidc.use_pkce or enable PKCE \
                      on the client ({description})"
                 );
             }
@@ -570,7 +570,7 @@ impl OidcProvider {
                 None
             }
             Err(err) => {
-                // Enrichment is best-effort; the ID token already provided a
+                // Enrichment is best-effort. The ID token already provided a
                 // usable identity.
                 tracing::debug!("userinfo request failed: {err}");
                 None
@@ -606,7 +606,7 @@ impl OidcProvider {
         Some(url.to_string())
     }
 }
-/// Maps a role claim value (string or array) onto a role, ignoring `owner`.
+/// Maps a role claim value (string or array) onto a role and ignores `owner`.
 fn resolve_role(value: &Value) -> Option<super::Role> {
     let candidates: Vec<String> = match value {
         Value::String(single) => vec![single.clone()],
@@ -618,7 +618,7 @@ fn resolve_role(value: &Value) -> Option<super::Role> {
         _ => return None,
     };
 
-    // Highest-privilege recognised value wins, in the upstream order.
+    // Highest-privilege recognized value wins, in the upstream order.
     for wanted in [
         "admin",
         "network_admin",

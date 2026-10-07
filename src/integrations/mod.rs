@@ -1,8 +1,8 @@
 //! Reload integrations.
 //!
 //! DNS and authentication-restriction edits change the Headscale config file on
-//! disk; Headscale only picks those up on restart or `SIGHUP`. Exactly one
-//! integration may be enabled, and it is invoked after every config write.
+//! disk. Headscale only picks those up on restart or `SIGHUP`. Exactly one
+//! integration can be enabled. Sailplane invokes it after every config write.
 
 pub mod docker;
 pub mod kubernetes;
@@ -24,8 +24,8 @@ pub enum Integration {
     Docker(Arc<DockerIntegration>),
     Kubernetes(Arc<KubernetesIntegration>),
     Proc,
-    /// No integration configured: config edits are written but Headscale is
-    /// not reloaded automatically.
+    /// No integration configured: Sailplane writes config edits but does not
+    /// reload Headscale automatically.
     None,
 }
 
@@ -45,13 +45,13 @@ impl Integration {
                  Headscale logs. Enable `integration.docker`."
             ),
             _ => anyhow::bail!(
-                "the configured reload integration cannot read container logs; only \
+                "the configured reload integration cannot read container logs. Only \
                  `integration.docker` can"
             ),
         }
     }
 
-    /// Builds the integration described by the configuration, validating
+    /// Builds the integration described by the configuration and validates
     /// availability up front so the UI can warn early.
     pub fn from_config(config: Option<&IntegrationConfig>) -> Self {
         let Some(config) = config else {
@@ -96,7 +96,7 @@ impl Integration {
 
     /// Reloads Headscale so it picks up configuration changes.
     ///
-    /// A failure here does not lose the edit: the file is already written.
+    /// A failure here does not lose the edit: Sailplane already wrote the file.
     /// Callers surface it as a warning rather than rolling back.
     pub async fn on_config_change(&self, headscale: &Headscale) -> Result<()> {
         match self {

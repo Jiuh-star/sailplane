@@ -2,7 +2,7 @@
 //!
 //! Unlike the rest of `web::settings`, which edits Headscale's config file,
 //! this edits the values Sailplane stores in its own database. Secret values are
-//! never returned; the UI only learns whether one is set.
+//! never returned. The UI only learns whether one is set.
 
 use axum::Json;
 use axum::extract::State;

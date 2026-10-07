@@ -23,7 +23,7 @@ import { api, type OidcSettings } from '@/lib/api'
 const { t } = useI18n()
 const toast = useToast()
 
-/// Defaults rather than null, so the template never has to narrow a ref.
+/// Defaults rather than null, so the template never narrows a ref.
 const settings = ref<OidcSettings>({
   configured: false,
   issuer: '',

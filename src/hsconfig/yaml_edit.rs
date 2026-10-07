@@ -2,8 +2,8 @@
 //!
 //! A round-trip YAML library would drop comments, key order, and formatting.
 //! This module finds a dotted key path in the original text and replaces only
-//! that value's lines. It handles block-style mappings and sequences; nested
-//! flow-style collections inside a patched path are rejected.
+//! that value's lines. It handles block-style mappings and sequences. It
+//! rejects nested flow-style collections inside a patched path.
 
 use std::cell::OnceCell;
 
@@ -14,7 +14,7 @@ use serde_json::Value;
 /// `split."example.com"` and `split.example.com` both work.
 pub type Path = Vec<String>;
 
-/// A YAML document that can be patched while preserving everything else.
+/// A YAML document that can be patched while all other content stays intact.
 #[derive(Debug, Clone)]
 pub struct YamlEditor {
     text: String,
@@ -27,7 +27,7 @@ pub struct YamlEditor {
 #[derive(Debug, Clone, Copy)]
 struct ValueSpan {
     key_line: usize,
-    /// First line of the value block (may equal `key_line` for inline values).
+    /// First line of the value block (can equal `key_line` for inline values).
     first: usize,
     /// One past the last line of the value block.
     end: usize,
@@ -66,7 +66,7 @@ impl YamlEditor {
         }
     }
 
-    /// Reads a boolean, accepting Go-style `"true"`/`"false"` strings.
+    /// Reads a boolean. It also accepts Go-style `"true"`/`"false"` strings.
     pub fn get_bool(&self, path: &Path) -> Option<bool> {
         match self.get_value(path)? {
             Value::Bool(b) => Some(b),
@@ -109,7 +109,7 @@ impl YamlEditor {
         Some(current)
     }
 
-    /// Sets a value at `path`, creating intermediate mappings as needed.
+    /// Sets a value at `path`. It creates intermediate mappings if necessary.
     pub fn set(&mut self, path: &Path, value: Value) -> Result<()> {
         if path.is_empty() {
             bail!("cannot patch the document root");
@@ -128,7 +128,7 @@ impl YamlEditor {
     fn patch(&mut self, path: &Path, value: Option<Value>) -> Result<()> {
         let mut lines = self.lines();
 
-        // Descends the ancestors, recording each block's span.
+        // Descends the ancestors and records each block's span.
         let mut parent: Option<ValueSpan> = None;
         let mut child_indent = 0usize;
         let mut missing: Option<usize> = None;
@@ -243,10 +243,10 @@ impl YamlEditor {
     }
 }
 
-/// Parses a dotted path, honouring quoted segments.
+/// Parses a dotted path and honors quoted segments.
 ///
 /// `dns.nameservers.split."example.com"` yields four segments with the quotes
-/// removed, so a domain containing dots stays a single key.
+/// removed, so a domain with dots stays a single key.
 pub fn parse_path(input: &str) -> Path {
     let mut segments = Vec::new();
     let mut current = String::new();
@@ -339,9 +339,9 @@ fn render_value(value: &Value, base_indent: usize, indent_width: usize) -> Resul
     })
 }
 
-/// Tests whether a character ends the emitted line, or is one a YAML reader
-/// folds as if it had. A raw one inside a scalar would let a value add keys of
-/// its own.
+/// Tests whether a character ends the emitted line, or is one that a YAML
+/// reader folds as if it had. A raw one inside a scalar would let a value add
+/// keys of its own.
 fn breaks_line(c: char) -> bool {
     c.is_control() || matches!(c, '\u{2028}' | '\u{2029}')
 }
@@ -398,7 +398,7 @@ fn is_skippable(line: &str) -> bool {
     trimmed.is_empty() || trimmed.starts_with('#')
 }
 
-/// Returns the key a line assigns, if it is a mapping entry.
+/// Returns the key that a line assigns, if it is a mapping entry.
 fn line_key(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     if trimmed.starts_with('-') {
@@ -485,7 +485,7 @@ fn detect_indent_width(text: &str) -> usize {
     2
 }
 
-/// Returns the indentation used by a mapping's children. A mapping with no
+/// Returns the indentation that a mapping's children use. A mapping with no
 /// children yet gets its own indentation plus one level.
 fn child_indent_of(lines: &[String], span: &ValueSpan, indent_width: usize) -> usize {
     if span.first < span.end {
@@ -497,8 +497,8 @@ fn child_indent_of(lines: &[String], span: &ValueSpan, indent_width: usize) -> u
 
 /// Inserts the missing tail of a path inside the deepest block that exists.
 ///
-/// `path` starts at the first segment the document does not already have, and
-/// `indent` is the indentation its first segment must use.
+/// `path` starts at the first segment that the document does not already have,
+/// and `indent` is the indentation its first segment must use.
 fn insert_chain(
     lines: &mut Vec<String>,
     parent: Option<ValueSpan>,
@@ -682,7 +682,7 @@ policy:
 
         let text = editor.as_str();
         assert!(text.contains("search_domains:\n    - a.example\n    - b.example"));
-        // The following block survived.
+        // The block that follows survived.
         assert!(text.contains("extra_records:"));
         assert!(text.contains("policy:"));
     }

@@ -1,9 +1,9 @@
 //! Kubernetes integration.
 //!
 //! Sailplane runs as a sidecar in the same pod as Headscale and reloads it by
-//! signalling the `headscale serve` PID found in `/proc`. This requires
-//! `shareProcessNamespace: true` on the pod, which is validated up front using
-//! the in-cluster service account.
+//! signaling the `headscale serve` PID found in `/proc`. The pod must set
+//! `shareProcessNamespace: true`. Sailplane validates this up front with the
+//! in-cluster service account.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -59,7 +59,7 @@ impl KubernetesIntegration {
         }
 
         let pid = find_headscale_pid(&self.proc_root).context(
-            "could not find a running `headscale serve` process; the pod must set \
+            "could not find a running `headscale serve` process. The pod must set \
              `spec.shareProcessNamespace: true` for Sailplane to reload it",
         )?;
 
@@ -72,7 +72,7 @@ impl KubernetesIntegration {
         let token = self.read_service_account_file("token")?;
         let namespace = self.read_service_account_file("namespace")?;
         let Some(pod_name) = self.config.pod_name.clone() else {
-            bail!("integration.kubernetes.pod_name is required to validate the pod manifest");
+            bail!("integration.kubernetes.pod_name is necessary to validate the pod manifest");
         };
 
         let client = self.build_client()?;
@@ -89,7 +89,7 @@ impl KubernetesIntegration {
 
         if response.status() == reqwest::StatusCode::FORBIDDEN {
             bail!(
-                "the service account is not allowed to read pod `{pod_name}`; grant `get` on pods \
+                "the service account cannot read pod `{pod_name}`. Grant `get` on pods \
                  or set `integration.kubernetes.validate_manifest: false`"
             );
         }
@@ -124,7 +124,7 @@ impl KubernetesIntegration {
         let path = self.service_account_dir.join(name);
         std::fs::read_to_string(&path).with_context(|| {
             format!(
-                "missing Kubernetes service account file {}; is Sailplane running in-cluster?",
+                "missing Kubernetes service account file {}. Does Sailplane run in-cluster?",
                 path.display()
             )
         })

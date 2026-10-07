@@ -2,7 +2,7 @@
 //!
 //! The format matches upstream's `base64url(json) + "." + base64url(hmac_sha256)`
 //! in `_sailplane_auth`, so existing cookies keep working. Unlike upstream,
-//! verification is constant-time and the cookie is marked `HttpOnly`.
+//! verification is constant-time and the cookie carries the `HttpOnly` flag.
 
 use anyhow::Result;
 use base64::Engine;
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 pub const SESSION_COOKIE: &str = "_sailplane_auth";
 /// Name of the short-lived OIDC transaction cookie.
 pub const OIDC_STATE_COOKIE: &str = "__oidc_state";
-/// Name of the colour-scheme preference cookie.
+/// Name of the color-scheme preference cookie.
 pub const COLOR_SCHEME_COOKIE: &str = "color_scheme";
 
 const B64: base64::engine::general_purpose::GeneralPurpose =
@@ -116,7 +116,7 @@ pub struct CookieOptions {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SameSite {
-    /// Sent on top-level navigations; the only mode the session cookie needs.
+    /// Sent on top-level navigations. The session cookie uses only this mode.
     Lax,
 }
 

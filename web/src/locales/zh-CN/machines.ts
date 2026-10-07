@@ -70,7 +70,7 @@ export default {
     description: '带标签的设备归属于标签，而不是某个用户。',
     empty: '该设备没有标签。',
     undeclaredTitle: '未声明的标签',
-    undeclaredBody: '{tags} 未在 ACL 策略的 tagOwners 中声明，Headscale 将拒绝此更改。',
+    undeclaredBody: '{tags} 未在 ACL 策略的 tagOwners 中声明。在你声明之前，Headscale 将拒绝此更改。',
   },
   owner: {
     title: '更改所有者',
@@ -80,7 +80,7 @@ export default {
   },
   expire: {
     title: '吊销设备密钥？',
-    description: '{name} 需要重新认证才能重新加入网络。',
+    description: '{name} 必须重新认证才能重新加入网络。',
     confirm: '吊销密钥',
   },
   remove: {

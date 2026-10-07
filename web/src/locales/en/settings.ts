@@ -11,7 +11,7 @@ export default {
     },
     restrictions: {
       title: 'Authentication restrictions',
-      description: 'Limit which identities may sign in to Headscale through OIDC.',
+      description: 'Limit which identities can sign in to Headscale through OIDC.',
     },
     apiKeys: {
       title: 'Headscale API keys',
@@ -27,7 +27,7 @@ export default {
     },
     derp: {
       title: 'DERP',
-      description: 'Where the relays come from, and how often the map is refetched.',
+      description: 'Where the relays come from, and how often Headscale refetches the map.',
     },
     logs: {
       title: 'Headscale logs',
@@ -47,13 +47,75 @@ export default {
     ssh: 'SSH',
     advanced: 'Advanced',
   },
+  groupDescriptions: {
+    server: 'How Sailplane listens, and how it signs cookies.',
+    headscale: 'How Sailplane reaches the Headscale control server.',
+    oidc: "Sailplane's own single sign-on, separate from Headscale's.",
+    integration: 'How Sailplane reloads Headscale after a configuration change.',
+    agent:
+      'The Sailplane proxy: a tailscaled sidecar that reports host info and carries browser SSH. To enable it, the socket must exist on this host. It takes effect as soon as you save.',
+    ssh: 'Browser SSH: the server opens each session through the proxy.',
+    advanced: 'Options you rarely change.',
+  },
+  fields: {
+    headscale: {
+      url: 'Headscale API URL',
+      public_url: 'Public URL',
+      api_key: 'API key',
+      api_key_path: 'API key file',
+      config_path: 'Config file path',
+      dns_records_path: 'DNS records path',
+      tls_cert_path: 'TLS certificate path',
+    },
+    server: {
+      host: 'Listen address',
+      port: 'Listen port',
+      base_url: 'Public base URL',
+      base_path: 'URL path prefix',
+      data_path: 'Data directory',
+    },
+    oidc: {
+      enabled: 'Enable single sign-on',
+    },
+    integration: {
+      agent: {
+        enabled: 'Enable the Sailplane proxy',
+        backend: 'Backend',
+        host_name: 'Agent host name',
+        socket: 'Tailscale socket path',
+        cache_ttl: 'Host-info cache (seconds)',
+        executable_path: 'Agent executable',
+        work_dir: 'Agent working directory',
+        tailscale_netns: 'Use a network namespace',
+      },
+      ssh: {
+        enabled: 'Enable browser SSH',
+        proxy: 'SOCKS5 proxy address',
+        port: 'SSH port',
+        username: 'Default user',
+        private_key_path: 'Private key path',
+        password: 'Password',
+      },
+    },
+  },
+  fieldDescriptions: {
+    integration: {
+      agent: {
+        enabled: 'Turns on host info and the SSH transport. Takes effect as soon as you save.',
+      },
+      ssh: {
+        proxy: "The sidecar's SOCKS5 address, usually 127.0.0.1:1086.",
+      },
+    },
+  },
   nothingToConfigure: {
     title: 'Nothing to configure',
     description: 'Your account does not have access to any settings sections.',
   },
   deployment: {
     title: 'Deployment',
-    description: 'How this Sailplane instance is wired up.',
+    overviewTitle: 'Instance overview',
+    description: 'How this Sailplane instance is configured.',
     sailplaneVersion: 'Sailplane version',
     headscaleVersion: 'Headscale version',
     reloadIntegration: 'Reload integration',
@@ -86,7 +148,7 @@ export default {
     sourceDatabase: 'Stored',
     secretPlaceholderSet: 'Unchanged',
     secretPlaceholderUnset: 'Not set',
-    secretHint: 'A stored secret is never shown. Type a new value to replace it.',
+    secretHint: 'Sailplane never shows a stored secret. Type a new value to replace it.',
     clear: 'Clear',
     cleared: 'Will be deleted',
     listHint: 'Separate values with commas.',

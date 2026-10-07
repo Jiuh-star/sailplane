@@ -17,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { errorMessage } from '@/composables/useToast'
-import { api, type TopologyResponse } from '@/lib/api'
+import { api, type TopologyEdge, type TopologyResponse } from '@/lib/api'
 import {
   parseApproverExitNodes,
   parseApproverRoutes,
@@ -41,29 +41,43 @@ onMounted(async () => {
   }
 })
 
+const nodeById = computed(
+  () => new Map((data.value?.nodes ?? []).map((node) => [node.id, node])),
+)
+
+/** The display label of a node, or its id. */
+function nodeLabel(id: string): string {
+  return nodeById.value.get(id)?.label ?? id
+}
+
 const aclEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'acl') ?? [])
 const sshEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'ssh') ?? [])
 const grantEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'grant') ?? [])
+const capEdges = computed(() => data.value?.edges.filter((edge) => edge.kind === 'cap') ?? [])
 
-/** The badge text and variant for an edge kind, shared by the list and legend. */
-function edgeKindLabel(kind: 'acl' | 'grant' | 'ssh') {
-  return kind === 'ssh'
-    ? t('topology.graph.ssh')
-    : kind === 'grant'
-      ? t('topology.graph.grant')
-      : t('topology.graph.acl')
+/** The badge text for an edge kind, shared by the list and the legend. */
+function edgeKindLabel(kind: TopologyEdge['kind']) {
+  return t(`topology.graph.edge.${kind}`)
+}
+
+/** The badge variant for an edge kind. */
+function edgeKindVariant(kind: TopologyEdge['kind']) {
+  if (kind === 'ssh') return 'info' as const
+  if (kind === 'cap' || kind === 'grant') return 'warning' as const
+  return 'secondary' as const
 }
 
 /** Routes nobody else advertises: losing that machine loses the network. */
 const soleRoutes = computed(() => data.value?.routes.filter((route) => route.sole) ?? [])
 
-/** Edges grouped by source, for the narrow-screen rendering. */
+/** Policy edges grouped by source node, for the narrow-screen rendering. */
 const bySource = computed(() => {
-  const groups = new Map<string, NonNullable<TopologyResponse['edges']>>()
+  const groups = new Map<string, TopologyEdge[]>()
   for (const edge of data.value?.edges ?? []) {
-    const list = groups.get(edge.src) ?? []
+    if (edge.kind === 'route' || edge.kind === 'exit' || edge.kind === 'relay') continue
+    const list = groups.get(edge.source) ?? []
     list.push(edge)
-    groups.set(edge.src, list)
+    groups.set(edge.source, list)
   }
   return [...groups.entries()]
 })
@@ -138,7 +152,7 @@ const hasPolicyExtras = computed(
       </Alert>
 
       <EmptyState
-        v-if="!data.edges.length"
+        v-if="!data.nodes.length"
         :title="t('topology.noRules')"
         :description="t('topology.noRulesDescription')"
       />
@@ -153,20 +167,18 @@ const hasPolicyExtras = computed(
             <!-- A phone gets the edges as a
                  list, because a scaled-down diagram is unreadable. -->
             <div class="hidden md:block">
-              <AccessGraph :identities="data.identities" :edges="data.edges" />
+              <AccessGraph :nodes="data.nodes" :edges="data.edges" />
             </div>
 
             <div class="space-y-3 md:hidden">
               <div v-for="[source, edges] in bySource" :key="source" class="rounded-md border p-3">
-                <code class="text-xs font-medium">{{ source }}</code>
-                <div v-for="edge in edges" :key="`${edge.kind}-${edge.rule}`" class="mt-1.5">
+                <code class="text-xs font-medium">{{ nodeLabel(source) }}</code>
+                <div v-for="edge in edges" :key="edge.id" class="mt-1.5">
                   <span class="text-muted-foreground text-xs">
-                    → <code>{{ edge.dst }}</code>:{{ edge.ports }}
+                    → <code>{{ nodeLabel(edge.target) }}</code
+                    ><template v-if="edge.label">:{{ edge.label }}</template>
                   </span>
-                  <Badge
-                    class="ml-2"
-                    :variant="edge.kind === 'ssh' ? 'info' : edge.kind === 'grant' ? 'warning' : 'secondary'"
-                  >
+                  <Badge class="ml-2" :variant="edgeKindVariant(edge.kind)">
                     {{ edgeKindLabel(edge.kind) }}
                   </Badge>
                 </div>
@@ -176,6 +188,7 @@ const hasPolicyExtras = computed(
             <div class="text-muted-foreground mt-3 flex flex-wrap gap-4 text-xs">
               <span>{{ t('topology.graph.legendAcl', { count: aclEdges.length }) }}</span>
               <span>{{ t('topology.graph.legendGrant', { count: grantEdges.length }) }}</span>
+              <span>{{ t('topology.graph.legendCap', { count: capEdges.length }) }}</span>
               <span>{{ t('topology.graph.legendSsh', { count: sshEdges.length }) }}</span>
             </div>
           </CardContent>

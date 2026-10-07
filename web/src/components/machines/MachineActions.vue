@@ -62,11 +62,9 @@ const ownerValue = ref('')
 const tagsValue = ref<string[]>([])
 const tagInput = ref('')
 
-const isExitNode = computed(() =>
-  [...props.machine.approvedRoutes, ...props.machine.availableRoutes].some(
-    (route) => route === '0.0.0.0/0' || route === '::/0',
-  ),
-)
+// Whether the machine advertises an exit route. An approval without an
+// advertisement is not an exit node, so this mirrors the server's `exit_node`.
+const isExitNode = computed(() => props.machine.exit_node)
 
 const subnetRoutes = computed(() =>
   props.machine.availableRoutes.filter((route) => route !== '0.0.0.0/0' && route !== '::/0'),
